@@ -13,7 +13,9 @@ New behaviour (per-region coloring)
 
 Template loading
 ────────────────
-  Auto-scans the project folder for a file whose name contains 'test' or
+  Menu bar → File → "Open Image…" lets the user pick any image at runtime.
+  "Open from Images Folder" starts the dialog inside the project's images/ dir.
+  On startup the app auto-scans for a file whose name contains 'test' or
   'crayo'.  If nothing is found it auto-generates test_pattern.png.
   SVG files are rasterised via PyQt6.QtSvg (no external libraries needed).
 """
@@ -25,12 +27,20 @@ from PIL import Image
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QFrame, QSizePolicy, QPushButton, QFileDialog,
+    QMessageBox,
 )
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QFont, QImage, QPixmap, QColor, QCursor
+from PyQt6.QtGui import QFont, QImage, QPixmap, QColor, QCursor, QAction
 
 from image_utils import identify_regions, apply_region_colors, find_test_image
 from generate_test_image import create_test_image
+
+# Folder where users can drop paint-by-numbers images for easy access
+PROJECT_DIR  = os.path.dirname(os.path.abspath(__file__))
+IMAGES_DIR   = os.path.join(PROJECT_DIR, 'images')
+os.makedirs(IMAGES_DIR, exist_ok=True)
+
+_IMAGE_FILTER = 'Images (*.png *.jpg *.jpeg *.bmp *.svg);;All files (*)'
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -141,6 +151,7 @@ class ImageProcessorWindow(QMainWindow):
 
         self._load_template()
         self._build_ui()
+        self._build_menu()
 
         # Wire state signals
         self.state.selected_region_changed.connect(self._on_region_selected)
@@ -154,27 +165,53 @@ class ImageProcessorWindow(QMainWindow):
     # ── Template loading ──────────────────────────────────────────────────
 
     def _load_template(self):
-        project_dir = os.path.dirname(os.path.abspath(__file__))
-        img_path    = find_test_image(project_dir)
-
+        """Auto-detect a template on startup."""
+        img_path = find_test_image(PROJECT_DIR)
         if img_path is None:
             img_path = create_test_image(
-                filename=os.path.join(project_dir, 'test_pattern.png')
+                filename=os.path.join(PROJECT_DIR, 'test_pattern.png')
             )
+        self._load_template_from_path(img_path)
 
-        if img_path.lower().endswith('.svg'):
-            pil_img = self._svg_to_pil(img_path)
-        else:
-            pil_img = Image.open(img_path).convert('RGB')
+    def _load_template_from_path(self, img_path: str):
+        """Load (or reload) any image file as the coloring template."""
+        try:
+            if img_path.lower().endswith('.svg'):
+                pil_img = self._svg_to_pil(img_path)
+            else:
+                pil_img = Image.open(img_path).convert('RGB')
+        except Exception as exc:
+            QMessageBox.warning(
+                self, 'Load Error',
+                f'Could not open image:\n{img_path}\n\n{exc}'
+            )
+            return
 
         pil_img = pil_img.resize((400, 400), Image.LANCZOS)
         self.template_array = np.array(pil_img)
 
+        # Reset per-panel colors and region selection when a new image is loaded
+        self.left_region_colors  = {}
+        self.right_region_colors = {}
+        self.state.selected_region = -1
+
         self.num_regions, self.region_labels = identify_regions(self.template_array)
+        fname = os.path.basename(img_path)
         print(
             f'[Window 2] Template: {img_path} '
             f'| regions detected: {self.num_regions - 1}'
         )
+
+        # Update title and status so the user knows which file is active
+        self.setWindowTitle(
+            f'Window 2 — Dual-View Image Processor  [{fname}]'
+        )
+        if hasattr(self, 'status'):
+            self.status.setText(
+                f'Loaded: {fname}  ({self.num_regions - 1} regions)'
+            )
+        self._render_left()
+        self._render_right()
 
     @staticmethod
     def _svg_to_pil(svg_path: str) -> Image.Image:
@@ -197,6 +234,69 @@ class ImageProcessorWindow(QMainWindow):
         ptr.setsize(qimg.sizeInBytes())
         arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, w, 3))
         return Image.fromarray(arr.copy(), 'RGB')
+
+    # ── Menu bar ──────────────────────────────────────────────────────────
+
+    def _build_menu(self):
+        mb = self.menuBar()
+        mb.setStyleSheet("""
+            QMenuBar {
+                background-color : #1e1e1e;
+                color            : #dddddd;
+                font-size        : 12px;
+            }
+            QMenuBar::item:selected { background-color: #333333; }
+            QMenu {
+                background-color : #252525;
+                color            : #dddddd;
+                border           : 1px solid #444444;
+            }
+            QMenu::item:selected { background-color: #3a3a5a; }
+            QMenu::separator     { height: 1px; background: #444444; margin: 3px 0; }
+        """)
+
+        file_menu = mb.addMenu('File')
+
+        act_open = QAction('Open Image…', self)
+        act_open.setShortcut('Ctrl+O')
+        act_open.setStatusTip('Choose any image file as the coloring template')
+        act_open.triggered.connect(self._open_image)
+        file_menu.addAction(act_open)
+
+        act_open_folder = QAction('Open from Images Folder', self)
+        act_open_folder.setShortcut('Ctrl+Shift+O')
+        act_open_folder.setStatusTip(
+            f'Browse the project images/ folder ({IMAGES_DIR})'
+        )
+        act_open_folder.triggered.connect(self._open_image_from_folder)
+        file_menu.addAction(act_open_folder)
+
+        file_menu.addSeparator()
+
+        act_save = QAction('Save Image', self)
+        act_save.setShortcut('Ctrl+S')
+        act_save.setStatusTip('Export left + right panels side-by-side as PNG')
+        act_save.triggered.connect(self._save_image)
+        file_menu.addAction(act_save)
+
+    # ── Open image actions ────────────────────────────────────────────────
+
+    def _open_image(self):
+        """Let the user pick any image file from anywhere."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, 'Open Template Image', PROJECT_DIR, _IMAGE_FILTER
+        )
+        if path:
+            self._load_template_from_path(path)
+
+    def _open_image_from_folder(self):
+        """Open file dialog starting inside the project images/ folder."""
+        path, _ = QFileDialog.getOpenFileName(
+            self, 'Open Template Image from Images Folder',
+            IMAGES_DIR, _IMAGE_FILTER
+        )
+        if path:
+            self._load_template_from_path(path)
 
     # ── UI construction ───────────────────────────────────────────────────
 
