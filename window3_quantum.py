@@ -1,34 +1,31 @@
 """
 window3_quantum.py — Quantum Probability Palette (Window 3)
 
-Layout
-──────
-  ┌─────────────────────────────────────────────┐
-  │  [title + instructions]                     │
-  │  ┌─────────────────────────────────────┐    │
-  │  │  2-D HSV Gradient Palette           │    │
-  │  │  (X = Hue 0→360°, Y = Value high→low│    │
-  │  │   square selector drawn on top)     │    │
-  │  └─────────────────────────────────────┘    │
-  │  [Selector Size slider]                     │
-  │  [⚡ Collapse button]                        │
-  │  [Collapsed colour swatch + RGB label]      │
-  │  [Distribution statistics text]             │
-  └─────────────────────────────────────────────┘
+Heisenberg Auto-Move
+────────────────────
+The square selector can move autonomously, obeying the Uncertainty Principle:
 
-Controls
-────────
-  ↑ ↓ ← →  Move the square selector (step = 5 px)
-  Slider    Resize the square (10 … 150 px)
-  Enter     Perform the Quantum Collapse and update Window 2 (right side)
+    Δx · Δp  ≥  ℏ/2
 
-Quantum Collapse algorithm  (see image_utils.quantum_collapse for details)
-  1. Gather all pixels inside the selector square.
-  2. Compute per-channel mean (μ) and std-dev (σ).
-  3. Score each pixel via the joint Normal PDF:
-       P(px) = ∏ₖ  exp(−½·((pxₖ−μₖ)/σₖ)²)
-  4. Normalise scores → probability distribution.
-  5. Weighted random sample → one pixel = the collapsed colour.
+  Slider LEFT  (small square, small Δx)
+    → momentum highly uncertain → FAST, ERRATIC, diffuse path
+
+  Slider RIGHT (large square, large Δx)
+    → momentum well-defined    → SLOW, SMOOTH, predictable drift
+
+Implementation
+──────────────
+  A QTimer fires every TICK_MS milliseconds.
+  Each tick:
+    1. momentum_spread  = HBAR / sq_size          (our ℏ analogue)
+    2. Add Gaussian noise to velocity:
+          vx += N(0, momentum_spread · NOISE_SCALE)
+    3. Apply damping (DAMP) to prevent runaway acceleration.
+    4. Clamp ‖v‖ ≤ momentum_spread · SPEED_SCALE.
+    5. Accumulate sub-pixel movement (float accumulators fx, fy).
+    6. Move selector; reflect velocity component at any wall hit.
+
+Arrow keys still work during auto-move to steer the path.
 """
 
 import numpy as np
@@ -37,7 +34,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QSlider, QFrame,
 )
-from PyQt6.QtCore import Qt, QSize
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QImage, QPixmap, QPainter, QPen, QColor
 
 from image_utils import create_gradient_palette, quantum_collapse
@@ -45,6 +42,13 @@ from image_utils import create_gradient_palette, quantum_collapse
 # ── Palette canvas dimensions ─────────────────────────────────────────────────
 PAL_W = 520
 PAL_H = 290
+
+# ── Heisenberg motion constants ───────────────────────────────────────────────
+HBAR        = 700.0    # ℏ analogue  (Δx · Δp product target)
+NOISE_SCALE = 0.10     # fraction of momentum_spread added as noise each tick
+SPEED_SCALE = 0.38     # fraction of momentum_spread used as max speed cap
+DAMP        = 0.88     # velocity damping per tick (< 1 prevents runaway)
+TICK_MS     = 50       # timer interval in milliseconds  (20 fps)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -54,24 +58,21 @@ PAL_H = 290
 class GradientPaletteWidget(QWidget):
     """
     Renders the HSV gradient and overlays a movable/resizable square selector.
-    Key events are handled by the parent window and forwarded via the
-    move_selector() / set_selector_size() methods.
+    move_selector() returns (actual_dx, actual_dy) so the caller can detect
+    wall collisions and reflect the velocity vector.
     """
 
     def __init__(self, gradient_array: np.ndarray, parent=None):
         super().__init__(parent)
-        self._gradient = gradient_array      # (PAL_H × PAL_W × 3) uint8 RGB
+        self._gradient = gradient_array
         self._pixmap   = self._build_pixmap()
 
-        # Selector state (centre coordinates + half-size)
         self.sq_cx   = PAL_W // 2
         self.sq_cy   = PAL_H // 2
-        self.sq_size = 50                    # side length in pixels
+        self.sq_size = 50
 
         self.setFixedSize(PAL_W, PAL_H)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-
-    # ── Build backing pixmap from the gradient array ─────────────────────
 
     def _build_pixmap(self) -> QPixmap:
         arr  = np.ascontiguousarray(self._gradient, dtype=np.uint8)
@@ -79,50 +80,43 @@ class GradientPaletteWidget(QWidget):
         qimg = QImage(arr.data, w, h, w * c, QImage.Format.Format_RGB888)
         return QPixmap.fromImage(qimg)
 
-    # ── Public interface ──────────────────────────────────────────────────
-
-    def move_selector(self, dx: int, dy: int):
-        half = self.sq_size // 2
+    def move_selector(self, dx: int, dy: int) -> tuple:
+        """Move the selector and return the actual displacement applied."""
+        half      = self.sq_size // 2
+        old_cx    = self.sq_cx
+        old_cy    = self.sq_cy
         self.sq_cx = max(half, min(PAL_W - half, self.sq_cx + dx))
         self.sq_cy = max(half, min(PAL_H - half, self.sq_cy + dy))
         self.update()
+        return (self.sq_cx - old_cx, self.sq_cy - old_cy)
 
     def set_selector_size(self, size: int):
         self.sq_size = size
-        # Re-clamp centre so the square stays inside the canvas
         half = size // 2
         self.sq_cx = max(half, min(PAL_W - half, self.sq_cx))
         self.sq_cy = max(half, min(PAL_H - half, self.sq_cy))
         self.update()
 
     def selected_pixels(self) -> np.ndarray:
-        """Return the pixel sub-array currently inside the selector square."""
         half = self.sq_size // 2
-        x1   = max(0, self.sq_cx - half)
-        y1   = max(0, self.sq_cy - half)
-        x2   = min(PAL_W, self.sq_cx + half)
-        y2   = min(PAL_H, self.sq_cy + half)
+        x1 = max(0, self.sq_cx - half)
+        y1 = max(0, self.sq_cy - half)
+        x2 = min(PAL_W, self.sq_cx + half)
+        y2 = min(PAL_H, self.sq_cy + half)
         return self._gradient[y1:y2, x1:x2]
-
-    # ── Paint ─────────────────────────────────────────────────────────────
 
     def paintEvent(self, _event):
         painter = QPainter(self)
         painter.drawPixmap(0, 0, self._pixmap)
 
         half = self.sq_size // 2
-        x    = self.sq_cx - half
-        y    = self.sq_cy - half
+        x, y = self.sq_cx - half, self.sq_cy - half
         sz   = self.sq_size
 
-        # Outer white border (2 px)
         painter.setPen(QPen(QColor(255, 255, 255), 2, Qt.PenStyle.SolidLine))
         painter.drawRect(x, y, sz, sz)
-
-        # Inner black dashed border (1 px, inset by 2)
         painter.setPen(QPen(QColor(0, 0, 0), 1, Qt.PenStyle.DashLine))
         painter.drawRect(x + 2, y + 2, sz - 4, sz - 4)
-
         painter.end()
 
 
@@ -134,25 +128,37 @@ class QuantumPaletteWindow(QMainWindow):
 
     def __init__(self, state):
         super().__init__()
-        self.state          = state
-        self._gradient      = create_gradient_palette(PAL_W, PAL_H)
-        self._last_collapse = state.quantum_color   # remember last result
+        self.state         = state
+        self._gradient     = create_gradient_palette(PAL_W, PAL_H)
+        self._last_collapse = state.quantum_color
+
+        # ── Heisenberg velocity state ──────────────────────────────────
+        self._vx = 0.0     # current x velocity (pixels / tick, float)
+        self._vy = 0.0     # current y velocity
+        self._fx = 0.0     # sub-pixel x accumulator
+        self._fy = 0.0     # sub-pixel y accumulator
+
+        # ── Animation timer ────────────────────────────────────────────
+        self._timer = QTimer(self)
+        self._timer.setInterval(TICK_MS)
+        self._timer.timeout.connect(self._animate_step)
+        self._animating = False
 
         self.setWindowTitle('Window 3 — Quantum Probability Palette')
-        self.setFixedSize(560, 580)
+        self.setFixedSize(560, 650)
 
         self._build_ui()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFocus()
 
-    # ── UI construction ──────────────────────────────────────────────────
+    # ── UI construction ───────────────────────────────────────────────────
 
     def _build_ui(self):
         root = QWidget()
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
-        layout.setSpacing(8)
-        layout.setContentsMargins(16, 14, 16, 14)
+        layout.setSpacing(7)
+        layout.setContentsMargins(16, 12, 16, 12)
 
         # Title
         title = QLabel('Quantum Probability Palette')
@@ -161,28 +167,27 @@ class QuantumPaletteWindow(QMainWindow):
         layout.addWidget(title)
 
         # Instructions
-        info = QLabel('↑↓←→ Move  ·  Slider: Resize  ·  Enter / Button: Collapse')
+        info = QLabel(
+            '↑↓←→ Move  ·  Slider: Size & Velocity  ·  Enter / ⚡: Collapse'
+        )
         info.setAlignment(Qt.AlignmentFlag.AlignCenter)
         info.setFont(QFont('Arial', 9))
         info.setStyleSheet('color: #888888;')
         layout.addWidget(info)
 
-        # ── Gradient palette ───────────────────────────────────────────
+        # Gradient palette
         self.palette = GradientPaletteWidget(self._gradient)
-        # Centre it horizontally
         pal_row = QHBoxLayout()
         pal_row.addStretch()
         pal_row.addWidget(self.palette)
         pal_row.addStretch()
         layout.addLayout(pal_row)
 
-        # ── Size slider row ────────────────────────────────────────────
+        # ── Size / velocity slider ─────────────────────────────────────
         slider_row = QHBoxLayout()
         slider_row.setSpacing(10)
 
-        lbl = QLabel('Selector size:')
-        lbl.setFont(QFont('Arial', 10))
-        slider_row.addWidget(lbl)
+        slider_row.addWidget(QLabel('Small\n(fast)'))
 
         self.slider = QSlider(Qt.Orientation.Horizontal)
         self.slider.setRange(10, 150)
@@ -192,6 +197,8 @@ class QuantumPaletteWindow(QMainWindow):
         self.slider.valueChanged.connect(self._on_size_change)
         slider_row.addWidget(self.slider)
 
+        slider_row.addWidget(QLabel('Large\n(slow)'))
+
         self.size_lbl = QLabel('50 px')
         self.size_lbl.setFixedWidth(48)
         self.size_lbl.setFont(QFont('Arial', 10))
@@ -199,9 +206,24 @@ class QuantumPaletteWindow(QMainWindow):
 
         layout.addLayout(slider_row)
 
+        # ── Heisenberg uncertainty display ─────────────────────────────
+        self.heis_lbl = QLabel(self._heisenberg_text())
+        self.heis_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.heis_lbl.setFont(QFont('Courier', 9))
+        self.heis_lbl.setStyleSheet('color: #aaaaee;')
+        layout.addWidget(self.heis_lbl)
+
+        # ── Auto-Move toggle button ────────────────────────────────────
+        self.anim_btn = QPushButton('⚛  Auto-Move  [Heisenberg]')
+        self.anim_btn.setMinimumHeight(44)
+        self.anim_btn.setFont(QFont('Arial', 11, QFont.Weight.Bold))
+        self._style_anim_btn(False)
+        self.anim_btn.clicked.connect(self._toggle_animation)
+        layout.addWidget(self.anim_btn)
+
         # ── Collapse button ────────────────────────────────────────────
         self.collapse_btn = QPushButton('⚡  Collapse  [Enter]')
-        self.collapse_btn.setMinimumHeight(46)
+        self.collapse_btn.setMinimumHeight(44)
         self.collapse_btn.setFont(QFont('Arial', 13, QFont.Weight.Bold))
         self.collapse_btn.setStyleSheet("""
             QPushButton {
@@ -216,9 +238,9 @@ class QuantumPaletteWindow(QMainWindow):
         self.collapse_btn.clicked.connect(self._do_collapse)
         layout.addWidget(self.collapse_btn)
 
-        # ── Push to Right Image button ──────────────────────────────────
+        # ── Push button ────────────────────────────────────────────────
         self.push_btn = QPushButton('▶  Push Color to Right Image')
-        self.push_btn.setMinimumHeight(46)
+        self.push_btn.setMinimumHeight(44)
         self.push_btn.setFont(QFont('Arial', 11, QFont.Weight.Bold))
         self.push_btn.setStyleSheet("""
             QPushButton {
@@ -233,16 +255,14 @@ class QuantumPaletteWindow(QMainWindow):
         self.push_btn.clicked.connect(lambda: self.state.request_push_quantum())
         layout.addWidget(self.push_btn)
 
-        # ── Result display row ─────────────────────────────────────────
+        # ── Result display ─────────────────────────────────────────────
         result_row = QHBoxLayout()
         result_row.setSpacing(10)
 
-        collapsed_lbl = QLabel('Collapsed:')
-        collapsed_lbl.setFont(QFont('Arial', 11))
-        result_row.addWidget(collapsed_lbl)
+        result_row.addWidget(QLabel('Collapsed:'))
 
         self.swatch = QLabel()
-        self.swatch.setFixedSize(60, 36)
+        self.swatch.setFixedSize(60, 34)
         self.swatch.setStyleSheet(
             'background-color: rgb(90,60,180); border: 2px solid #555;'
         )
@@ -255,36 +275,145 @@ class QuantumPaletteWindow(QMainWindow):
         result_row.addStretch()
         layout.addLayout(result_row)
 
-        # ── Statistics / distribution info ─────────────────────────────
+        # Stats line
         self.stats_lbl = QLabel(
-            'Press Enter or click Collapse to sample a colour from the selection.'
+            'Press Enter or click Collapse to sample a colour.'
         )
         self.stats_lbl.setFont(QFont('Arial', 9))
         self.stats_lbl.setStyleSheet('color: #888888;')
         self.stats_lbl.setWordWrap(True)
         layout.addWidget(self.stats_lbl)
 
-    # ── Slider callback ───────────────────────────────────────────────────
+    # ── Heisenberg helpers ─────────────────────────────────────────────────
+
+    def _momentum_spread(self) -> float:
+        """Δp  =  ℏ / Δx  (our uncertainty-principle analogue)."""
+        return HBAR / max(1, self.palette.sq_size)
+
+    def _heisenberg_text(self) -> str:
+        sq  = self.palette.sq_size if hasattr(self, 'palette') else 50
+        dp  = HBAR / sq
+        return (
+            f'Δx = {sq:>4} px   ·   Δp ≈ {dp:>6.1f}   ·   '
+            f'Δx·Δp = {sq * dp:.0f}  (ℏ = {HBAR:.0f})'
+        )
+
+    def _style_anim_btn(self, running: bool):
+        if running:
+            self.anim_btn.setText('⏸  Pause Auto-Move')
+            self.anim_btn.setStyleSheet("""
+                QPushButton {
+                    background-color : #6a2e8a;
+                    color            : #f0d0ff;
+                    border-radius    : 10px;
+                    border           : 2px solid #aa60dd;
+                }
+                QPushButton:hover   { background-color : #7a3e9a; }
+                QPushButton:pressed { background-color : #5a1e7a; }
+            """)
+        else:
+            self.anim_btn.setText('⚛  Auto-Move  [Heisenberg]')
+            self.anim_btn.setStyleSheet("""
+                QPushButton {
+                    background-color : #2a3a2a;
+                    color            : #99dd99;
+                    border-radius    : 10px;
+                    border           : 2px solid #4a7a4a;
+                }
+                QPushButton:hover   { background-color : #3a4a3a; }
+                QPushButton:pressed { background-color : #1a2a1a; }
+            """)
+
+    # ── Animation control ──────────────────────────────────────────────────
+
+    def _toggle_animation(self):
+        if self._animating:
+            self._timer.stop()
+            self._animating = False
+            self._style_anim_btn(False)
+            self.stats_lbl.setText('Auto-Move paused.')
+        else:
+            # Give a small initial kick in a random direction
+            dp = self._momentum_spread()
+            self._vx = np.random.uniform(-dp * 0.2, dp * 0.2)
+            self._vy = np.random.uniform(-dp * 0.2, dp * 0.2)
+            self._fx = 0.0
+            self._fy = 0.0
+            self._timer.start()
+            self._animating = True
+            self._style_anim_btn(True)
+
+    # ── Heisenberg animation step ──────────────────────────────────────────
+
+    def _animate_step(self):
+        """
+        Called every TICK_MS ms.
+
+        Physics (Heisenberg-inspired):
+          momentum_spread  =  HBAR / sq_size          [Δp ∝ 1/Δx]
+          noise per tick   ~  N(0,  momentum_spread · NOISE_SCALE)
+          max speed        =  momentum_spread · SPEED_SCALE
+          damping per tick =  DAMP  (prevents infinite acceleration)
+
+        Large square → momentum_spread small → slow, smooth path.
+        Small square → momentum_spread large → fast, erratic path.
+        """
+        dp        = self._momentum_spread()
+        max_speed = dp * SPEED_SCALE
+
+        # Add uncertainty noise to velocity (Heisenberg kick)
+        self._vx += np.random.normal(0.0, dp * NOISE_SCALE)
+        self._vy += np.random.normal(0.0, dp * NOISE_SCALE)
+
+        # Damping
+        self._vx *= DAMP
+        self._vy *= DAMP
+
+        # Clamp to max speed
+        speed = np.hypot(self._vx, self._vy)
+        if speed > max_speed and speed > 0:
+            self._vx = self._vx / speed * max_speed
+            self._vy = self._vy / speed * max_speed
+
+        # Accumulate sub-pixel displacement
+        self._fx += self._vx
+        self._fy += self._vy
+
+        dx = int(self._fx)
+        dy = int(self._fy)
+        self._fx -= dx
+        self._fy -= dy
+
+        # Move and detect boundary hits → reflect velocity
+        actual_dx, actual_dy = self.palette.move_selector(dx, dy)
+        if dx != 0 and actual_dx == 0:
+            self._vx = -self._vx
+            self._fx = 0.0
+        if dy != 0 and actual_dy == 0:
+            self._vy = -self._vy
+            self._fy = 0.0
+
+        # Live uncertainty display
+        self.heis_lbl.setText(self._heisenberg_text())
+
+    # ── Slider callback ────────────────────────────────────────────────────
 
     def _on_size_change(self, value: int):
         self.palette.set_selector_size(value)
         self.size_lbl.setText(f'{value} px')
+        self.heis_lbl.setText(self._heisenberg_text())
 
-    # ── Quantum Collapse ──────────────────────────────────────────────────
+    # ── Quantum Collapse ───────────────────────────────────────────────────
 
     def _do_collapse(self):
-        region  = self.palette.selected_pixels()
-        pixels  = region.reshape(-1, 3).astype(np.float64)
-
+        region = self.palette.selected_pixels()
+        pixels = region.reshape(-1, 3).astype(np.float64)
         if len(pixels) == 0:
             return
 
-        # Statistics for the display label
         means = np.mean(pixels, axis=0)
-        stds  = np.std(pixels,  axis=0)
-        stds  = np.maximum(stds, 1.0)
+        stds  = np.maximum(np.std(pixels, axis=0), 1.0)
 
-        # Weighted sample via Normal distribution
         color = quantum_collapse(
             self._gradient,
             self.palette.sq_cx,
@@ -292,39 +421,33 @@ class QuantumPaletteWindow(QMainWindow):
             self.palette.sq_size,
         )
 
-        # Push to shared state → Window 2 right panel updates immediately
         self.state.quantum_color = color
         self._last_collapse      = color
 
-        # Update swatch + numeric label
         r, g, b = color
         self.swatch.setStyleSheet(
             f'background-color: rgb({r},{g},{b}); border: 2px solid #555;'
         )
         self.result_lbl.setText(f'({r:>3}, {g:>3}, {b:>3})')
-
-        # Update statistics line
-        n = len(pixels)
         self.stats_lbl.setText(
-            f'Sampled from {n} pixels  ·  '
-            f'μ = ({int(means[0])}, {int(means[1])}, {int(means[2])})  ·  '
-            f'σ = ({int(stds[0])}, {int(stds[1])}, {int(stds[2])})'
+            f'n={len(pixels)}  ·  '
+            f'μ=({int(means[0])},{int(means[1])},{int(means[2])})  ·  '
+            f'σ=({int(stds[0])},{int(stds[1])},{int(stds[2])})'
         )
 
-    # ── Keyboard handling ─────────────────────────────────────────────────
+    # ── Keyboard ───────────────────────────────────────────────────────────
 
     def keyPressEvent(self, event):
         key  = event.key()
         step = 5
-
         if   key == Qt.Key.Key_Left:
-            self.palette.move_selector(-step,  0)
+            self.palette.move_selector(-step, 0)
         elif key == Qt.Key.Key_Right:
-            self.palette.move_selector( step,  0)
+            self.palette.move_selector( step, 0)
         elif key == Qt.Key.Key_Up:
-            self.palette.move_selector( 0, -step)
+            self.palette.move_selector(0, -step)
         elif key == Qt.Key.Key_Down:
-            self.palette.move_selector( 0,  step)
+            self.palette.move_selector(0,  step)
         elif key in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
             self._do_collapse()
         else:
