@@ -713,7 +713,7 @@ class ImageProcessorWindow(QMainWindow):
     # ── Render ────────────────────────────────────────────────────────────
 
     def _render_left(self):
-        if self.template_array is None:
+        if self.template_array is None or self.region_labels is None:
             return
         arr = apply_region_colors(
             self.template_array, self.region_labels,
@@ -722,7 +722,7 @@ class ImageProcessorWindow(QMainWindow):
         self.left_panel.update_image(arr)
 
     def _render_right(self):
-        if self.template_array is None:
+        if self.template_array is None or self.region_labels is None:
             return
         arr = apply_region_colors(
             self.template_array, self.region_labels,
