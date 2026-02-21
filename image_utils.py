@@ -164,6 +164,75 @@ def quantum_collapse(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Region detection  (connected-component labelling)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def identify_regions(template_array: np.ndarray) -> tuple:
+    """
+    Detect distinct fillable regions via connected components.
+
+    Any pixel with perceptual luminance > 80 is considered 'fillable' (white /
+    light-coloured area).  The complementary dark pixels are outlines (region 0).
+
+    Returns
+    -------
+    num_labels : int   — total number of labels (including 0 = outline)
+    labels     : H×W int32 ndarray — each pixel's region ID (0 = outline)
+    """
+    r = template_array[:, :, 0].astype(np.float32)
+    g = template_array[:, :, 1].astype(np.float32)
+    b = template_array[:, :, 2].astype(np.float32)
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+
+    fillable = (lum > 80).astype(np.uint8) * 255
+    num_labels, labels = cv2.connectedComponents(fillable, connectivity=4)
+
+    # Force outline pixels back to region 0
+    labels[lum <= 80] = 0
+
+    return num_labels, labels.astype(np.int32)
+
+
+def apply_region_colors(
+    template_array: np.ndarray,
+    region_labels: np.ndarray,
+    region_colors: dict,
+    selected_region: int = -1,
+    default_fill: tuple = (225, 225, 225),
+) -> np.ndarray:
+    """
+    Render the template with per-region colours.
+
+    Parameters
+    ----------
+    template_array  : H×W×3 uint8 RGB  — the original line-art image
+    region_labels   : H×W int32        — 0 = outline, >0 = region ID
+    region_colors   : {region_id: (R,G,B)} — explicitly painted regions
+    selected_region : highlight this region ID with a yellow tint (-1 = none)
+    default_fill    : colour for regions not yet assigned a colour
+    """
+    result = template_array.copy().astype(np.float32)
+
+    # Paint all non-outline pixels with the default (uncoloured) fill
+    fillable = region_labels > 0
+    result[fillable] = default_fill
+
+    # Apply explicit per-region colours
+    for rid, color in region_colors.items():
+        mask = region_labels == rid
+        result[mask] = color
+
+    # Yellow highlight for the currently selected region
+    if selected_region > 0:
+        sel = region_labels == selected_region
+        if sel.any():
+            yellow = np.array([255.0, 215.0, 40.0])
+            result[sel] = 0.55 * result[sel] + 0.45 * yellow
+
+    return np.clip(result, 0, 255).astype(np.uint8)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Test image finder
 # ─────────────────────────────────────────────────────────────────────────────
 

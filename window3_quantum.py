@@ -139,7 +139,7 @@ class QuantumPaletteWindow(QMainWindow):
         self._last_collapse = state.quantum_color   # remember last result
 
         self.setWindowTitle('Window 3 — Quantum Probability Palette')
-        self.setFixedSize(560, 510)
+        self.setFixedSize(560, 580)
 
         self._build_ui()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
@@ -215,6 +215,23 @@ class QuantumPaletteWindow(QMainWindow):
         """)
         self.collapse_btn.clicked.connect(self._do_collapse)
         layout.addWidget(self.collapse_btn)
+
+        # ── Push to Right Image button ──────────────────────────────────
+        self.push_btn = QPushButton('▶  Push Color to Right Image')
+        self.push_btn.setMinimumHeight(46)
+        self.push_btn.setFont(QFont('Arial', 11, QFont.Weight.Bold))
+        self.push_btn.setStyleSheet("""
+            QPushButton {
+                background-color : #1a4a6a;
+                color            : #aaddff;
+                border-radius    : 10px;
+                border           : 2px solid #2a6a9a;
+            }
+            QPushButton:hover   { background-color : #2a5a7a; }
+            QPushButton:pressed { background-color : #0a3a5a; }
+        """)
+        self.push_btn.clicked.connect(lambda: self.state.request_push_quantum())
+        layout.addWidget(self.push_btn)
 
         # ── Result display row ─────────────────────────────────────────
         result_row = QHBoxLayout()

@@ -66,7 +66,7 @@ class RGBControllerWindow(QMainWindow):
         self._channels = {'R': False, 'G': False, 'B': False}
 
         self.setWindowTitle('Window 1 — Classical RGB Controller')
-        self.setFixedSize(300, 440)
+        self.setFixedSize(300, 520)
         self._build_ui()
 
     # ── UI construction ──────────────────────────────────────────────────
@@ -114,6 +114,23 @@ class RGBControllerWindow(QMainWindow):
         btn_row.addWidget(self.btn_g)
         btn_row.addWidget(self.btn_b)
         layout.addLayout(btn_row)
+
+        # ── Push button ────────────────────────────────────────────────
+        self.push_btn = QPushButton('▶  Push Color to Left Image')
+        self.push_btn.setMinimumHeight(46)
+        self.push_btn.setFont(QFont('Arial', 11, QFont.Weight.Bold))
+        self.push_btn.setStyleSheet("""
+            QPushButton {
+                background-color : #1a4a6a;
+                color            : #aaddff;
+                border-radius    : 10px;
+                border           : 2px solid #2a6a9a;
+            }
+            QPushButton:hover   { background-color : #2a5a7a; }
+            QPushButton:pressed { background-color : #0a3a5a; }
+        """)
+        self.push_btn.clicked.connect(lambda: self.state.request_push_rgb())
+        layout.addWidget(self.push_btn)
 
         # ── Status line ────────────────────────────────────────────────
         self.status = QLabel('All channels  OFF')
