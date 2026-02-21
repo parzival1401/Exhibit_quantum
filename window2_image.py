@@ -210,8 +210,9 @@ class ImageProcessorWindow(QMainWindow):
             self.status.setText(
                 f'Loaded: {fname}  ({self.num_regions - 1} regions)'
             )
-        self._render_left()
-        self._render_right()
+        if hasattr(self, 'left_panel'):
+            self._render_left()
+            self._render_right()
 
     @staticmethod
     def _svg_to_pil(svg_path: str) -> Image.Image:
