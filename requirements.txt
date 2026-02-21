@@ -2,4 +2,4 @@ PyQt6>=6.4.0
 Pillow>=9.0.0
 opencv-python>=4.7.0
 numpy>=1.24.0
-cairosvg>=2.5.0
+# cairosvg removed — SVG is rendered via PyQt6.QtSvg (no native cairo needed)

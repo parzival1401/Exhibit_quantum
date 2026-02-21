@@ -152,17 +152,30 @@ class ImageProcessorWindow(QMainWindow):
 
     @staticmethod
     def _svg_to_pil(svg_path: str) -> Image.Image:
-        """Rasterise an SVG file to a Pillow Image (RGB, scale=2 for sharpness)."""
-        try:
-            import cairosvg
-            import io
-            png_bytes = cairosvg.svg2png(url=svg_path, scale=2)
-            return Image.open(io.BytesIO(png_bytes)).convert('RGB')
-        except ImportError:
-            raise RuntimeError(
-                'cairosvg is required to load SVG files.\n'
-                'Run:  pip install cairosvg'
-            )
+        """
+        Rasterise an SVG using PyQt6's built-in QSvgRenderer.
+        No extra native libraries required — Qt handles it natively.
+        """
+        from PyQt6.QtSvg import QSvgRenderer
+        from PyQt6.QtGui import QImage, QPainter, QColor
+
+        renderer = QSvgRenderer(svg_path)
+        size = renderer.defaultSize()
+        w = size.width()  * 2 if size.isValid() else 1200
+        h = size.height() * 2 if size.isValid() else 1200
+
+        # Render onto a white RGB888 canvas
+        qimg = QImage(w, h, QImage.Format.Format_RGB888)
+        qimg.fill(QColor(255, 255, 255))
+        painter = QPainter(qimg)
+        renderer.render(painter)
+        painter.end()
+
+        # Convert QImage bytes → numpy → PIL
+        ptr = qimg.bits()
+        ptr.setsize(qimg.sizeInBytes())
+        arr = np.frombuffer(ptr, dtype=np.uint8).reshape((h, w, 3))
+        return Image.fromarray(arr.copy(), 'RGB')
 
     # ── UI construction ──────────────────────────────────────────────────
 
