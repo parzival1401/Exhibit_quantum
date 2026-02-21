@@ -169,13 +169,33 @@ def quantum_collapse(
 
 def find_test_image(directory: str = '.') -> str | None:
     """
-    Recursively scans *directory* for an image whose filename contains 'test'.
-    Returns the first match, or None if no suitable file is found.
+    Recursively scans *directory* for a template image using two passes:
+
+    Pass 1 — Priority names: any file whose name contains 'test' or 'crayo'
+             (SVG checked first so vector art takes priority over raster copies).
+    Pass 2 — Fallback: the first image of any name found in the directory
+             (allows dropping any image into the folder without renaming it).
+
+    Returns the absolute path of the first match, or None if the folder is empty.
     """
-    for ext in ('png', 'jpg', 'jpeg', 'bmp'):
+    EXTENSIONS   = ('svg', 'png', 'jpg', 'jpeg', 'bmp')
+    PRIORITY_KEYS = ('test', 'crayo')
+
+    # Pass 1: priority filenames
+    for ext in EXTENSIONS:
         for path in glob.glob(
             os.path.join(directory, f'**/*.{ext}'), recursive=True
         ):
-            if 'test' in os.path.basename(path).lower():
+            name = os.path.basename(path).lower()
+            if any(key in name for key in PRIORITY_KEYS):
                 return path
+
+    # Pass 2: any image in the folder
+    for ext in EXTENSIONS:
+        matches = glob.glob(
+            os.path.join(directory, f'**/*.{ext}'), recursive=True
+        )
+        if matches:
+            return matches[0]
+
     return None

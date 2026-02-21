@@ -131,7 +131,7 @@ class ImageProcessorWindow(QMainWindow):
     def _load_template(self):
         project_dir = os.path.dirname(os.path.abspath(__file__))
 
-        # 1. Try to find an existing test image
+        # 1. Try to find an existing test image (SVG or raster)
         img_path = find_test_image(project_dir)
 
         # 2. Auto-generate if none found
@@ -140,10 +140,29 @@ class ImageProcessorWindow(QMainWindow):
                 filename=os.path.join(project_dir, 'test_pattern.png')
             )
 
-        pil_img = Image.open(img_path).convert('RGB')
+        # 3. SVG → rasterise via cairosvg, then hand off to Pillow
+        if img_path.lower().endswith('.svg'):
+            pil_img = self._svg_to_pil(img_path)
+        else:
+            pil_img = Image.open(img_path).convert('RGB')
+
         pil_img = pil_img.resize((400, 400), Image.LANCZOS)
         self.template_array = np.array(pil_img)
         print(f'[Window 2] Template loaded: {img_path}')
+
+    @staticmethod
+    def _svg_to_pil(svg_path: str) -> Image.Image:
+        """Rasterise an SVG file to a Pillow Image (RGB, scale=2 for sharpness)."""
+        try:
+            import cairosvg
+            import io
+            png_bytes = cairosvg.svg2png(url=svg_path, scale=2)
+            return Image.open(io.BytesIO(png_bytes)).convert('RGB')
+        except ImportError:
+            raise RuntimeError(
+                'cairosvg is required to load SVG files.\n'
+                'Run:  pip install cairosvg'
+            )
 
     # ── UI construction ──────────────────────────────────────────────────
 
