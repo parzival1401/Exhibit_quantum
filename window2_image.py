@@ -37,8 +37,8 @@ from PyQt6.QtWidgets import (
     QMessageBox, QStackedWidget, QScrollArea, QDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
-from PyQt6.QtGui import QFont, QImage, QPixmap, QColor, QCursor, QAction, QPainter
-from PyQt6.QtPrintSupport import QPrinter, QPrintDialog
+from PyQt6.QtGui import QFont, QImage, QPixmap, QColor, QCursor, QAction, QPainter, QPageLayout
+from PyQt6.QtPrintSupport import QPrinter
 
 from image_utils import identify_regions, apply_region_colors
 
@@ -963,25 +963,20 @@ class ImageProcessorWindow(QMainWindow):
         combined = np.hstack([left_arr, right_arr])
         pixmap   = _to_pixmap(combined.astype(np.uint8))
 
-        # Open OS print dialog
+        # Send directly to default printer — no dialog
         printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        dialog  = QPrintDialog(printer, self)
-        if dialog.exec() != QPrintDialog.DialogCode.Accepted:
-            return
+        printer.setPageOrientation(QPageLayout.Orientation.Landscape)
 
-        # Scale image to fill the printable area, keeping aspect ratio
         painter = QPainter(printer)
         rect    = painter.viewport()
         size    = pixmap.size()
         size.scale(rect.size(), Qt.AspectRatioMode.KeepAspectRatio)
-        painter.setViewport(
-            rect.x(), rect.y(), size.width(), size.height()
-        )
+        painter.setViewport(rect.x(), rect.y(), size.width(), size.height())
         painter.setWindow(pixmap.rect())
         painter.drawPixmap(0, 0, pixmap)
         painter.end()
 
-        self.status.setText('Artwork sent to printer')
+        self.status.setText(f'Printing on  {printer.printerName()}  …')
 
     # ── Save ─────────────────────────────────────────────────────────────
 
