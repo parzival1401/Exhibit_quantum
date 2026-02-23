@@ -284,6 +284,33 @@ class QuantumPaletteWindow(QMainWindow):
         self.stats_lbl.setWordWrap(True)
         layout.addWidget(self.stats_lbl)
 
+    # ── Arduino hardware input ─────────────────────────────────────────────
+
+    _POT_DEADBAND = 5   # raw units of movement needed to take control
+
+    def apply_pots(self, raw_x: int, raw_y: int, raw_size: int):
+        """
+        Called by ArduinoBridge.
+        Maps potentiometer values (0-1023) to palette coordinates and slider.
+        If the X/Y pots move beyond the deadband, auto-move is stopped so
+        the physical controls take over cleanly.
+        """
+        new_x    = int(raw_x    / 1023 * (PAL_W - 1))
+        new_y    = int(raw_y    / 1023 * (PAL_H - 1))
+        new_size = 10 + int(raw_size / 1023 * (150 - 10))
+
+        # Stop Heisenberg auto-move if the user is actively turning the pots
+        if (abs(new_x - self.palette.sq_cx) > self._POT_DEADBAND or
+                abs(new_y - self.palette.sq_cy) > self._POT_DEADBAND):
+            if self._animating:
+                self._toggle_animation()
+
+        self.palette.sq_cx   = new_x
+        self.palette.sq_cy   = new_y
+        self.palette.sq_size = new_size
+        self.palette.update()
+        self.slider.setValue(new_size)   # keep the on-screen slider in sync
+
     # ── Heisenberg helpers ─────────────────────────────────────────────────
 
     def _momentum_spread(self) -> float:

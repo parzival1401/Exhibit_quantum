@@ -38,6 +38,7 @@ from app_state        import AppState
 from window1_rgb      import RGBControllerWindow
 from window2_image    import ImageProcessorWindow
 from window3_quantum  import QuantumPaletteWindow
+from arduino_bridge   import ArduinoBridge
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -78,6 +79,14 @@ def main():
     w1 = RGBControllerWindow(state)
     w2 = ImageProcessorWindow(state)
     w3 = QuantumPaletteWindow(state)
+
+    # ── Arduino physical controls ──────────────────────────────────────────
+    # Auto-detects the Arduino USB port. If none is found, the app runs
+    # normally in software-only mode (no error, just a console message).
+    bridge = ArduinoBridge()
+    bridge.switches_changed.connect(w1.apply_switches)   # 3 switches → W1 RGB
+    bridge.pots_changed.connect(w3.apply_pots)           # 3 pots → W3 selector
+    bridge.start()
 
     # ── Position windows side-by-side ─────────────────────────────────────
     screen_rect = app.primaryScreen().availableGeometry()

@@ -165,6 +165,16 @@ class RGBControllerWindow(QMainWindow):
             'Active: ' + ' + '.join(active) if active else 'All channels  OFF'
         )
 
+    # ── Arduino hardware input ────────────────────────────────────────────
+
+    def apply_switches(self, r: bool, g: bool, b: bool):
+        """Called by ArduinoBridge — mirrors physical switch state onto the UI."""
+        self._channels = {'R': r, 'G': g, 'B': b}
+        self.btn_r.setChecked(r)
+        self.btn_g.setChecked(g)
+        self.btn_b.setChecked(b)
+        self._push_state()   # updates AppState + refreshes preview
+
     # ── Preview repaint ───────────────────────────────────────────────────
 
     def _refresh_preview(self):
