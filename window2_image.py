@@ -23,13 +23,18 @@ Staff / admin
 """
 
 import os
+import threading
+import socketserver
+import http.server
+import socket as _socket
+import tempfile
 import numpy as np
 from PIL import Image
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QGridLayout,
     QLabel, QFrame, QSizePolicy, QPushButton, QFileDialog,
-    QMessageBox, QStackedWidget, QScrollArea,
+    QMessageBox, QStackedWidget, QScrollArea, QDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
 from PyQt6.QtGui import QFont, QImage, QPixmap, QColor, QCursor, QAction
@@ -49,6 +54,124 @@ _IMAGE_FILTER   = 'Images (*.png *.jpg *.jpeg *.bmp *.svg);;All files (*)'
 _THUMB_W        = 210      # card thumbnail width  (px)
 _THUMB_H        = 190      # card thumbnail height (px)
 _CARD_COLS      = 3        # columns in the gallery grid
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Local HTTP server helpers (for QR code download)
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_local_ip() -> str:
+    """Return the machine's LAN IP (falls back to 127.0.0.1)."""
+    try:
+        s = _socket.socket(_socket.AF_INET, _socket.SOCK_DGRAM)
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+        s.close()
+        return ip
+    except Exception:
+        return '127.0.0.1'
+
+
+def _start_file_server(directory: str):
+    """Start a SimpleHTTPRequestHandler on a random free port in a daemon thread.
+    Returns (server, port)."""
+
+    class _Silent(http.server.SimpleHTTPRequestHandler):
+        def __init__(self, *a, **kw):
+            super().__init__(*a, directory=directory, **kw)
+        def log_message(self, *a):
+            pass   # suppress console noise
+
+    server = socketserver.TCPServer(('', 0), _Silent)
+    port   = server.server_address[1]
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server, port
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# QR Code dialog
+# ─────────────────────────────────────────────────────────────────────────────
+
+class QRDialog(QDialog):
+    """Full-screen-friendly dialog showing a scannable QR code."""
+
+    def __init__(self, url: str, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle('Scan to Download Your Artwork')
+        self.setModal(True)
+        self.setMinimumSize(440, 540)
+        self.setStyleSheet('background-color: #06061a;')
+
+        layout = QVBoxLayout(self)
+        layout.setSpacing(16)
+        layout.setContentsMargins(32, 28, 32, 28)
+
+        title = QLabel('Scan with your phone')
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        title.setFont(QFont('Arial', 18, QFont.Weight.Bold))
+        title.setStyleSheet('color: #ccccff;')
+        layout.addWidget(title)
+
+        sub = QLabel('Download your colored artwork to your camera roll')
+        sub.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        sub.setFont(QFont('Arial', 10))
+        sub.setStyleSheet('color: #556677;')
+        layout.addWidget(sub)
+
+        # Generate QR image
+        try:
+            import qrcode
+            qr = qrcode.QRCode(box_size=9, border=2)
+            qr.add_data(url)
+            qr.make(fit=True)
+            pil_qr = qr.make_image(
+                fill_color='white', back_color='#06061a'
+            ).convert('RGB')
+            arr = np.array(pil_qr)
+            pixmap = _to_pixmap(arr)
+        except Exception as exc:
+            pixmap = None
+            err_lbl = QLabel(f'QR generation failed:\n{exc}')
+            err_lbl.setStyleSheet('color: #ff6666;')
+            err_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            layout.addWidget(err_lbl)
+
+        if pixmap:
+            qr_lbl = QLabel()
+            qr_lbl.setPixmap(
+                pixmap.scaled(
+                    QSize(340, 340),
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+            qr_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            qr_lbl.setStyleSheet('border: none;')
+            layout.addWidget(qr_lbl)
+
+        url_lbl = QLabel(url)
+        url_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        url_lbl.setFont(QFont('Courier', 9))
+        url_lbl.setStyleSheet('color: #445566;')
+        url_lbl.setWordWrap(True)
+        layout.addWidget(url_lbl)
+
+        close_btn = QPushButton('Done  ✓')
+        close_btn.setMinimumHeight(52)
+        close_btn.setFont(QFont('Arial', 14, QFont.Weight.Bold))
+        close_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        close_btn.setStyleSheet("""
+            QPushButton {
+                background-color : #1a1aaa;
+                color            : #ffffff;
+                border-radius    : 14px;
+                border           : 2px solid #5555ff;
+            }
+            QPushButton:hover   { background-color : #2525cc; }
+            QPushButton:pressed { background-color : #0f0f77; }
+        """)
+        close_btn.clicked.connect(self.accept)
+        layout.addWidget(close_btn)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -261,6 +384,11 @@ class ImageProcessorWindow(QMainWindow):
         self.num_regions      = 0
         self.left_region_colors  = {}
         self.right_region_colors = {}
+
+        # QR code server state
+        self._qr_server  = None
+        self._qr_port    = None
+        self._qr_tmp_dir = tempfile.mkdtemp(prefix='quantum_exhibit_')
 
         self.setWindowTitle('Window 2 — Quantum Color Exhibit')
         self.setMinimumSize(900, 660)
@@ -509,6 +637,27 @@ class ImageProcessorWindow(QMainWindow):
         """)
         save_btn.clicked.connect(self._save_image)
         bot.addWidget(save_btn)
+
+        bot.addSpacing(14)
+
+        qr_btn = QPushButton('📱  Get QR Code')
+        qr_btn.setMinimumHeight(40)
+        qr_btn.setFont(QFont('Arial', 11))
+        qr_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        qr_btn.setStyleSheet("""
+            QPushButton {
+                background-color : #1a1a6a;
+                color            : #aaaaff;
+                border-radius    : 9px;
+                border           : 2px solid #3333cc;
+                padding          : 0 22px;
+            }
+            QPushButton:hover   { background-color : #2525aa; }
+            QPushButton:pressed { background-color : #0f0f55; }
+        """)
+        qr_btn.clicked.connect(self._show_qr_code)
+        bot.addWidget(qr_btn)
+
         bot.addStretch()
         main.addLayout(bot)
 
@@ -745,6 +894,36 @@ class ImageProcessorWindow(QMainWindow):
             self.sel_label.setStyleSheet('color: #aaaaaa;')
         self._render_left()
         self._render_right()
+
+    # ── QR Code ───────────────────────────────────────────────────────────
+
+    def _show_qr_code(self):
+        if self.template_array is None or self.region_labels is None:
+            self.status.setText('No image loaded yet — please select one first')
+            return
+
+        # Auto-save current result to temp folder (no dialog needed)
+        fname    = 'quantum_artwork.png'
+        tmp_path = os.path.join(self._qr_tmp_dir, fname)
+
+        left_arr  = apply_region_colors(
+            self.template_array, self.region_labels, self.left_region_colors
+        )
+        right_arr = apply_region_colors(
+            self.template_array, self.region_labels, self.right_region_colors
+        )
+        combined = np.hstack([left_arr, right_arr])
+        Image.fromarray(combined.astype(np.uint8), 'RGB').save(tmp_path)
+
+        # Start local HTTP server once (reused for all QR requests)
+        if self._qr_server is None:
+            self._qr_server, self._qr_port = _start_file_server(self._qr_tmp_dir)
+
+        ip  = _get_local_ip()
+        url = f'http://{ip}:{self._qr_port}/{fname}'
+
+        self.status.setText(f'QR ready — visitors can scan to download  ({url})')
+        QRDialog(url, self).exec()
 
     # ── Save ─────────────────────────────────────────────────────────────
 
