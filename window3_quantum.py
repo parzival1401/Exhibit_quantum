@@ -139,7 +139,11 @@ class QuantumPaletteWindow(QMainWindow):
         self._fy = 0.0     # sub-pixel y accumulator
 
         # ── Arduino potentiometer control flag ─────────────────────────
-        self._pots_enabled = True
+        self._pots_enabled      = True
+        self._pots_just_enabled = False   # suppress first reading after toggle-on
+        self._last_raw_x        = -1      # -1 = no reading yet
+        self._last_raw_y        = -1
+        self._last_raw_s        = -1
 
         # ── Animation timer ────────────────────────────────────────────
         self._timer = QTimer(self)
@@ -325,49 +329,68 @@ class QuantumPaletteWindow(QMainWindow):
 
     def _toggle_pots(self):
         self._pots_enabled = not self._pots_enabled
+        if self._pots_enabled:
+            # Mark so the first incoming reading sets the baseline without acting
+            self._pots_just_enabled = True
         self._style_pots_btn(self._pots_enabled)
         state_str = 'enabled' if self._pots_enabled else 'disabled'
         self.stats_lbl.setText(f'Arduino potentiometers {state_str}.')
 
     # ── Arduino hardware input ─────────────────────────────────────────────
 
-    _POT_DEADBAND  = 8     # raw ADC units of change to consider a pot "moving"
-    _last_raw_x    = 512   # last seen raw values (initialised to mid-range)
-    _last_raw_y    = 512
-    _last_raw_s    = 512
+    _POT_DEADBAND  = 8     # raw ADC units required to consider a pot "moving"
+    _POT_VEL_SCALE = 0.12  # mapped-pixel delta → velocity kick when animating
 
     def apply_pots(self, raw_x: int, raw_y: int, raw_size: int):
         """
         Called by ArduinoBridge every ~50 ms.
 
-        Deadband is checked against the PREVIOUS raw pot reading, not against
-        the selector position.  This means:
-          • Stationary pot → no override; Heisenberg auto-move runs freely.
-          • Actively turned pot → stop auto-move and take absolute control of X/Y.
-          • Size pot always updates the slider (works alongside auto-move).
+        First call after enabling pots: silently capture baseline (avoids false
+        jump from the default 512 to wherever the pot actually sits).
+
+        When animation is OFF — pots set absolute X/Y (direct position control).
+        When animation is ON  — pots add a velocity kick (drift/steer effect);
+                                the Heisenberg motion keeps running and the pot
+                                nudges its direction and speed.
+        Size pot always updates the slider regardless of animation state.
         """
         if not self._pots_enabled:
+            return
+
+        # First reading after enabling: snapshot baseline, do nothing else
+        if self._pots_just_enabled or self._last_raw_x < 0:
+            self._last_raw_x = raw_x
+            self._last_raw_y = raw_y
+            self._last_raw_s = raw_size
+            self._pots_just_enabled = False
             return
 
         pots_moving = (
             abs(raw_x - self._last_raw_x) > self._POT_DEADBAND or
             abs(raw_y - self._last_raw_y) > self._POT_DEADBAND
         )
+
+        if pots_moving:
+            new_x = int(raw_x / 1023 * (PAL_W - 1))
+            new_y = int(raw_y / 1023 * (PAL_H - 1))
+
+            if self._animating:
+                # Steer the drift: convert mapped-pixel delta into a velocity kick
+                prev_x = int(self._last_raw_x / 1023 * (PAL_W - 1))
+                prev_y = int(self._last_raw_y / 1023 * (PAL_H - 1))
+                self._vx += (new_x - prev_x) * self._POT_VEL_SCALE
+                self._vy += (new_y - prev_y) * self._POT_VEL_SCALE
+            else:
+                # Animation off → direct absolute position control
+                self.palette.sq_cx = new_x
+                self.palette.sq_cy = new_y
+
         self._last_raw_x = raw_x
         self._last_raw_y = raw_y
         self._last_raw_s = raw_size
 
+        # Size pot always applies (also controls Heisenberg speed when animating)
         new_size = 10 + int(raw_size / 1023 * (150 - 10))
-
-        if pots_moving:
-            # User is turning X/Y pots → stop animation and move to pot position
-            if self._animating:
-                self._toggle_animation()
-            self.palette.sq_cx = int(raw_x / 1023 * (PAL_W - 1))
-            self.palette.sq_cy = int(raw_y / 1023 * (PAL_H - 1))
-        # else: pots are idle → let animation (or keyboard) control X/Y freely
-
-        # Size pot always applies (controls Heisenberg speed when animating)
         self.palette.sq_size = new_size
         self.palette.update()
         self.slider.setValue(new_size)
