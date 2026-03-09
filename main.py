@@ -84,8 +84,10 @@ def main():
     # Auto-detects the Arduino USB port. If none is found, the app runs
     # normally in software-only mode (no error, just a console message).
     bridge = ArduinoBridge()
-    bridge.switches_changed.connect(w1.apply_switches)   # 3 switches → W1 RGB
-    bridge.pots_changed.connect(w3.apply_pots)           # 3 pots → W3 selector
+    bridge.switches_changed.connect(w1.apply_switches)          # 3 RGB switches → W1
+    bridge.pots_changed.connect(w3.apply_pots)                  # 3 pots → W3 selector
+    bridge.push_rgb_pressed.connect(state.request_push_rgb)     # SW_PUSH → left image
+    bridge.collapse_pressed.connect(w3.collapse_and_push)       # SW_COL  → collapse + right image
     bridge.start()
 
     # ── Position windows side-by-side ─────────────────────────────────────

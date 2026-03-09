@@ -546,6 +546,15 @@ class QuantumPaletteWindow(QMainWindow):
             f'σ=({int(stds[0])},{int(stds[1])},{int(stds[2])})'
         )
 
+    def collapse_and_push(self):
+        """
+        Called by the Arduino SW_COL button (and can be called programmatically).
+        Collapses the quantum palette selection and immediately pushes the
+        resulting colour to Window 2's right (quantum) panel — single button action.
+        """
+        self._do_collapse()
+        self.state.request_push_quantum()
+
     # ── Keyboard ───────────────────────────────────────────────────────────
 
     def keyPressEvent(self, event):

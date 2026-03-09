@@ -42,11 +42,15 @@ class ArduinoBridge(QObject):
     input into Qt signals consumable by the GUI windows.
     """
 
-    # Emitted whenever switch states change — payload: (R_on, G_on, B_on)
+    # Emitted whenever RGB switch states change — payload: (R_on, G_on, B_on)
     switches_changed = pyqtSignal(bool, bool, bool)
 
     # Emitted whenever potentiometer values arrive — payload: raw 0-1023 each
     pots_changed = pyqtSignal(int, int, int)   # x, y, size
+
+    # Emitted on the rising edge of each action button (momentary press)
+    push_rgb_pressed  = pyqtSignal()   # SW_PUSH → push classical colour to left image
+    collapse_pressed  = pyqtSignal()   # SW_COL  → collapse quantum + push to right image
 
     def __init__(self, port: str = None, baud: int = 115200):
         super().__init__()
@@ -57,7 +61,10 @@ class ArduinoBridge(QObject):
         self._ser      = None
 
         # Remember last switch state to avoid redundant signals
-        self._last_sw  = (False, False, False)
+        self._last_sw   = (False, False, False)
+        # Rising-edge tracking for action buttons
+        self._last_push = False
+        self._last_col  = False
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -104,23 +111,43 @@ class ArduinoBridge(QObject):
 
     def _parse_line(self, line: str):
         """
-        Parse 'S:1,0,1,A:512,256,80' and emit the appropriate signals.
+        Parse 'S:1,0,1,0,0,A:512,256,80' and emit the appropriate signals.
         Both sections must be present; missing or malformed lines are dropped.
+
+        S: five switch values — R, G, B, Push, Collapse
+        A: three pot values   — X, Y, Size  (0–1023 raw ADC)
+
+        push_rgb_pressed / collapse_pressed fire only on the rising edge
+        (button goes from released → pressed) to avoid repeated triggers.
         """
         try:
             if 'S:' not in line or 'A:' not in line:
                 return
 
             s_raw, a_raw = line.split('S:')[1].split(',A:')
-            sr, sg, sb   = (int(v) for v in s_raw.split(','))
-            ax, ay, az   = (int(v) for v in a_raw.split(','))
+            vals = [int(v) for v in s_raw.split(',')]
+            sr, sg, sb = vals[0], vals[1], vals[2]
+            sp = vals[3] if len(vals) > 3 else 0   # SW_PUSH (backwards-compat)
+            sc = vals[4] if len(vals) > 4 else 0   # SW_COL  (backwards-compat)
+            ax, ay, az = (int(v) for v in a_raw.split(','))
 
+            # RGB toggles — emit only on state change
             r, g, b = bool(sr), bool(sg), bool(sb)
             if (r, g, b) != self._last_sw:
                 self._last_sw = (r, g, b)
                 self.switches_changed.emit(r, g, b)
 
-            # Always emit pot values (the windows apply a deadband themselves)
+            # Action buttons — emit only on rising edge (press, not hold)
+            push = bool(sp)
+            col  = bool(sc)
+            if push and not self._last_push:
+                self.push_rgb_pressed.emit()
+            if col and not self._last_col:
+                self.collapse_pressed.emit()
+            self._last_push = push
+            self._last_col  = col
+
+            # Always emit pot values (windows apply their own deadband)
             self.pots_changed.emit(
                 max(0, min(1023, ax)),
                 max(0, min(1023, ay)),
