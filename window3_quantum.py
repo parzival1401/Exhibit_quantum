@@ -331,33 +331,46 @@ class QuantumPaletteWindow(QMainWindow):
 
     # ── Arduino hardware input ─────────────────────────────────────────────
 
-    _POT_DEADBAND = 5   # raw units of movement needed to take control
+    _POT_DEADBAND  = 8     # raw ADC units of change to consider a pot "moving"
+    _last_raw_x    = 512   # last seen raw values (initialised to mid-range)
+    _last_raw_y    = 512
+    _last_raw_s    = 512
 
     def apply_pots(self, raw_x: int, raw_y: int, raw_size: int):
         """
-        Called by ArduinoBridge.
-        Maps potentiometer values (0-1023) to palette coordinates and slider.
-        If the X/Y pots move beyond the deadband, auto-move is stopped so
-        the physical controls take over cleanly.
+        Called by ArduinoBridge every ~50 ms.
+
+        Deadband is checked against the PREVIOUS raw pot reading, not against
+        the selector position.  This means:
+          • Stationary pot → no override; Heisenberg auto-move runs freely.
+          • Actively turned pot → stop auto-move and take absolute control of X/Y.
+          • Size pot always updates the slider (works alongside auto-move).
         """
         if not self._pots_enabled:
             return
 
-        new_x    = int(raw_x    / 1023 * (PAL_W - 1))
-        new_y    = int(raw_y    / 1023 * (PAL_H - 1))
+        pots_moving = (
+            abs(raw_x - self._last_raw_x) > self._POT_DEADBAND or
+            abs(raw_y - self._last_raw_y) > self._POT_DEADBAND
+        )
+        self._last_raw_x = raw_x
+        self._last_raw_y = raw_y
+        self._last_raw_s = raw_size
+
         new_size = 10 + int(raw_size / 1023 * (150 - 10))
 
-        # Stop Heisenberg auto-move if the user is actively turning the pots
-        if (abs(new_x - self.palette.sq_cx) > self._POT_DEADBAND or
-                abs(new_y - self.palette.sq_cy) > self._POT_DEADBAND):
+        if pots_moving:
+            # User is turning X/Y pots → stop animation and move to pot position
             if self._animating:
                 self._toggle_animation()
+            self.palette.sq_cx = int(raw_x / 1023 * (PAL_W - 1))
+            self.palette.sq_cy = int(raw_y / 1023 * (PAL_H - 1))
+        # else: pots are idle → let animation (or keyboard) control X/Y freely
 
-        self.palette.sq_cx   = new_x
-        self.palette.sq_cy   = new_y
+        # Size pot always applies (controls Heisenberg speed when animating)
         self.palette.sq_size = new_size
         self.palette.update()
-        self.slider.setValue(new_size)   # keep the on-screen slider in sync
+        self.slider.setValue(new_size)
 
     # ── Heisenberg helpers ─────────────────────────────────────────────────
 
