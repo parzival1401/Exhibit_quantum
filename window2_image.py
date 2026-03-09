@@ -48,13 +48,32 @@ from image_utils import identify_regions, apply_region_colors
 
 PROJECT_DIR     = os.path.dirname(os.path.abspath(__file__))
 IMAGES_DIR      = os.path.join(PROJECT_DIR, 'images')
-os.makedirs(IMAGES_DIR, exist_ok=True)
+COLORED_DIR     = os.path.join(PROJECT_DIR, 'colored')
+os.makedirs(IMAGES_DIR,  exist_ok=True)
+os.makedirs(COLORED_DIR, exist_ok=True)
 
 _SUPPORTED_EXTS = ('.png', '.jpg', '.jpeg', '.bmp', '.svg')
 _IMAGE_FILTER   = 'Images (*.png *.jpg *.jpeg *.bmp *.svg);;All files (*)'
 _THUMB_W        = 210      # card thumbnail width  (px)
 _THUMB_H        = 190      # card thumbnail height (px)
 _CARD_COLS      = 3        # columns in the gallery grid
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Colored reference image lookup
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _find_colored_reference(img_path: str) -> str | None:
+    """Return path to matching pre-colored reference in colored/ folder, or None.
+    Matches on base filename (no extension). E.g.:
+        images/dinosaur.svg  →  colored/dinosaur.png  (if it exists)
+    """
+    base = os.path.splitext(os.path.basename(img_path))[0]
+    for ext in ('.png', '.jpg', '.jpeg', '.bmp'):
+        candidate = os.path.join(COLORED_DIR, base + ext)
+        if os.path.isfile(candidate):
+            return candidate
+    return None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -252,7 +271,8 @@ class ImageCard(QWidget):
     _PRESS = ('background-color: #2e2e55; border-radius: 14px;'
               ' border: 3px solid #bbbbff;')
 
-    def __init__(self, path: str, thumb_array: np.ndarray):
+    def __init__(self, path: str, thumb_array: np.ndarray,
+                 colored_array: np.ndarray | None = None):
         super().__init__()
         self._path = path
         self.setFixedSize(_THUMB_W + 20, _THUMB_H + 56)
@@ -286,6 +306,26 @@ class ImageCard(QWidget):
         name_lbl.setStyleSheet('color: #ccccff; border: none; background: transparent;')
         name_lbl.setWordWrap(True)
         layout.addWidget(name_lbl)
+
+        # Reference badge — bottom-right corner overlay (shown only if reference exists)
+        if colored_array is not None:
+            badge = QLabel(self)
+            badge.setPixmap(
+                _to_pixmap(colored_array).scaled(
+                    52, 52,
+                    Qt.AspectRatioMode.KeepAspectRatioByExpanding,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            )
+            badge.setFixedSize(54, 54)
+            badge.setStyleSheet(
+                'border: 2px solid #ffcc44; border-radius: 4px;'
+                ' background: transparent;'
+            )
+            badge.setToolTip('Reference colored image')
+            # Anchor to bottom-right of the thumbnail area
+            badge.move(_THUMB_W + 10 - 58, _THUMB_H + 10 - 58)
+            badge.raise_()
 
     def _apply(self, style: str):
         self.setStyleSheet(f'QWidget {{ {style} }}')
@@ -583,6 +623,34 @@ class ImageProcessorWindow(QMainWindow):
 
         main.addLayout(top)
 
+        # ── Reference image — upper middle ────────────────────────────────
+        ref_row = QHBoxLayout()
+        ref_row.addStretch()
+
+        self._ref_panel = QWidget()
+        rp = QVBoxLayout(self._ref_panel)
+        rp.setContentsMargins(4, 2, 4, 2)
+        rp.setSpacing(2)
+
+        ref_title = QLabel('🎨  Color Goal')
+        ref_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        ref_title.setFont(QFont('Arial', 8, QFont.Weight.Bold))
+        ref_title.setStyleSheet('color: #ffcc44;')
+        rp.addWidget(ref_title)
+
+        self.ref_img_lbl = QLabel()
+        self.ref_img_lbl.setFixedSize(130, 130)
+        self.ref_img_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.ref_img_lbl.setStyleSheet(
+            'border: 2px solid #ffcc44; border-radius: 6px; background: #111;'
+        )
+        rp.addWidget(self.ref_img_lbl)
+
+        self._ref_panel.hide()
+        ref_row.addWidget(self._ref_panel)
+        ref_row.addStretch()
+        main.addLayout(ref_row)
+
         # Region selection status
         self.sel_label = QLabel(
             'Click a region on the image to select it → then push a colour'
@@ -769,7 +837,9 @@ class ImageProcessorWindow(QMainWindow):
             arr = _load_image_array(path, size=_THUMB_H)
             if arr is None:
                 continue
-            card = ImageCard(path, arr)
+            colored_path = _find_colored_reference(path)
+            colored_arr  = _load_image_array(colored_path, size=60) if colored_path else None
+            card = ImageCard(path, arr, colored_arr)
             card.selected.connect(self._on_gallery_selected)
             row, col = divmod(idx, _CARD_COLS)
             self.gallery_grid.addWidget(card, row, col)
@@ -811,6 +881,22 @@ class ImageProcessorWindow(QMainWindow):
 
         self._render_left()
         self._render_right()
+
+        # Show colored reference image if one exists in colored/
+        colored_path = _find_colored_reference(img_path)
+        if colored_path:
+            ref_arr = _load_image_array(colored_path, size=130)
+            if ref_arr is not None:
+                self.ref_img_lbl.setPixmap(
+                    _to_pixmap(ref_arr).scaled(
+                        130, 130,
+                        Qt.AspectRatioMode.KeepAspectRatio,
+                        Qt.TransformationMode.SmoothTransformation,
+                    )
+                )
+                self._ref_panel.show()
+                return
+        self._ref_panel.hide()
 
     def _staff_open_image(self):
         """Admin-only: open any file from anywhere on disk."""

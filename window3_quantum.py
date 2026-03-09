@@ -138,6 +138,9 @@ class QuantumPaletteWindow(QMainWindow):
         self._fx = 0.0     # sub-pixel x accumulator
         self._fy = 0.0     # sub-pixel y accumulator
 
+        # ── Arduino potentiometer control flag ─────────────────────────
+        self._pots_enabled = True
+
         # ── Animation timer ────────────────────────────────────────────
         self._timer = QTimer(self)
         self._timer.setInterval(TICK_MS)
@@ -284,6 +287,48 @@ class QuantumPaletteWindow(QMainWindow):
         self.stats_lbl.setWordWrap(True)
         layout.addWidget(self.stats_lbl)
 
+        # ── Arduino potentiometer toggle ───────────────────────────────
+        self.pots_btn = QPushButton()
+        self.pots_btn.setMinimumHeight(38)
+        self.pots_btn.setFont(QFont('Arial', 10, QFont.Weight.Bold))
+        self._style_pots_btn(True)
+        self.pots_btn.clicked.connect(self._toggle_pots)
+        layout.addWidget(self.pots_btn)
+
+    # ── Arduino potentiometer enable / disable ────────────────────────────
+
+    def _style_pots_btn(self, enabled: bool):
+        if enabled:
+            self.pots_btn.setText('🎛  Arduino Pots  [ON]')
+            self.pots_btn.setStyleSheet("""
+                QPushButton {
+                    background-color : #1a4a2a;
+                    color            : #88ffaa;
+                    border-radius    : 8px;
+                    border           : 2px solid #3a8a4a;
+                }
+                QPushButton:hover   { background-color : #2a5a3a; }
+                QPushButton:pressed { background-color : #0a3a1a; }
+            """)
+        else:
+            self.pots_btn.setText('🎛  Arduino Pots  [OFF]')
+            self.pots_btn.setStyleSheet("""
+                QPushButton {
+                    background-color : #3a2a2a;
+                    color            : #aa6666;
+                    border-radius    : 8px;
+                    border           : 2px solid #6a3a3a;
+                }
+                QPushButton:hover   { background-color : #4a3a3a; }
+                QPushButton:pressed { background-color : #2a1a1a; }
+            """)
+
+    def _toggle_pots(self):
+        self._pots_enabled = not self._pots_enabled
+        self._style_pots_btn(self._pots_enabled)
+        state_str = 'enabled' if self._pots_enabled else 'disabled'
+        self.stats_lbl.setText(f'Arduino potentiometers {state_str}.')
+
     # ── Arduino hardware input ─────────────────────────────────────────────
 
     _POT_DEADBAND = 5   # raw units of movement needed to take control
@@ -295,6 +340,9 @@ class QuantumPaletteWindow(QMainWindow):
         If the X/Y pots move beyond the deadband, auto-move is stopped so
         the physical controls take over cleanly.
         """
+        if not self._pots_enabled:
+            return
+
         new_x    = int(raw_x    / 1023 * (PAL_W - 1))
         new_y    = int(raw_y    / 1023 * (PAL_H - 1))
         new_size = 10 + int(raw_size / 1023 * (150 - 10))
