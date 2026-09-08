@@ -66,7 +66,7 @@ class RGBControllerWindow(QMainWindow):
         self._channels = {'R': False, 'G': False, 'B': False}
 
         self.setWindowTitle('Window 1 — Classical RGB Controller')
-        self.setFixedSize(300, 520)
+        self.resize(300, 520)
         self._build_ui()
 
     # ── UI construction ──────────────────────────────────────────────────

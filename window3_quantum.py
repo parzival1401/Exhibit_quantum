@@ -152,7 +152,7 @@ class QuantumPaletteWindow(QMainWindow):
         self._animating = False
 
         self.setWindowTitle('Window 3 — Quantum Probability Palette')
-        self.setFixedSize(560, 650)
+        self.resize(560, 650)
 
         self._build_ui()
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
