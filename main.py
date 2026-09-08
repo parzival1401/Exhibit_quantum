@@ -40,6 +40,22 @@ from window2_image    import ImageProcessorWindow
 from window3_quantum  import QuantumPaletteWindow
 from arduino_bridge   import ArduinoBridge
 from scaling          import apply_uniform_scaling
+from kiosk            import apply_kiosk_mode
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Exhibition (final) presentation
+# ─────────────────────────────────────────────────────────────────────────────
+# False → development: every control is a visible, clickable button.
+# True  → exhibition:  buttons and developer readouts are hidden and the
+#                      exhibit is driven by the Arduino panel, with the
+#                      keyboard commands in kiosk.py as a staff fallback.
+#                      Press Esc to bring the controls back.
+KIOSK_MODE = True
+
+# Drop the window title bars in kiosk mode. Turn this off if the exhibit
+# machine's window manager needs the title bar to place windows.
+KIOSK_FRAMELESS = True
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -209,6 +225,17 @@ def main():
     bridge.collapse_pressed.connect(w3.collapse_and_push)       # SW_COL  → collapse + right image
     bridge.start()
 
+    # ── Exhibition presentation ───────────────────────────────────────────
+    # Applied before the windows are shown: the frameless flag re-shows a
+    # window if it is set later, which would fight the placement below.
+    # The shortcuts are parked on `app` because Qt destroys shortcut
+    # objects that get garbage collected, which would silently kill every
+    # keyboard command.
+    if KIOSK_MODE:
+        app._kiosk_shortcuts = apply_kiosk_mode(
+            w1, w2, w3, frameless=KIOSK_FRAMELESS
+        )
+
     # ── Position windows: fullscreen per monitor (3+ screens) or tiled ─────
     _place_windows(app, w1, w2, w3)
 
@@ -216,14 +243,18 @@ def main():
     w3.setFocus()
     w3.raise_()
 
-    print('\n'
-          '  ╔══════════════════════════════════════════════════════╗\n'
-          '  ║   Quantum Color PoC  — All three windows are open   ║\n'
-          '  ╠══════════════════════════════════════════════════════╣\n'
-          '  ║  Window 1  Toggle R / G / B to set classical colour  ║\n'
-          '  ║  Window 2  Live dual-view image fill                 ║\n'
-          '  ║  Window 3  ↑↓←→ move • Slider resize • Enter=Collapse║\n'
-          '  ╚══════════════════════════════════════════════════════╝\n')
+    if not KIOSK_MODE:
+        # In kiosk mode the command list printed by apply_kiosk_mode()
+        # already says how to drive the exhibit, and these button-based
+        # instructions would contradict it.
+        print('\n'
+              '  ╔══════════════════════════════════════════════════════╗\n'
+              '  ║   Quantum Color PoC  — All three windows are open   ║\n'
+              '  ╠══════════════════════════════════════════════════════╣\n'
+              '  ║  Window 1  Toggle R / G / B to set classical colour  ║\n'
+              '  ║  Window 2  Live dual-view image fill                 ║\n'
+              '  ║  Window 3  ↑↓←→ move • Slider resize • Enter=Collapse║\n'
+              '  ╚══════════════════════════════════════════════════════╝\n')
 
     sys.exit(app.exec())
     

@@ -538,6 +538,7 @@ class ImageProcessorWindow(QMainWindow):
             lambda: self.stack.setCurrentIndex(self.PAGE_WELCOME)
         )
         top.addWidget(back_btn)
+        self.back_btn = back_btn
 
         gal_title = QLabel('Choose an Image to Color')
         gal_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -613,6 +614,7 @@ class ImageProcessorWindow(QMainWindow):
         """)
         choose_btn.clicked.connect(self._go_to_gallery)
         top.addWidget(choose_btn)
+        self.choose_btn = choose_btn
 
         top.addStretch()
 
@@ -706,6 +708,7 @@ class ImageProcessorWindow(QMainWindow):
         """)
         save_btn.clicked.connect(self._save_image)
         bot.addWidget(save_btn)
+        self.save_btn = save_btn
 
         bot.addSpacing(14)
 
@@ -726,6 +729,7 @@ class ImageProcessorWindow(QMainWindow):
         """)
         qr_btn.clicked.connect(self._show_qr_code)
         bot.addWidget(qr_btn)
+        self.qr_btn = qr_btn
 
         bot.addSpacing(14)
 
@@ -746,6 +750,7 @@ class ImageProcessorWindow(QMainWindow):
         """)
         print_btn.clicked.connect(self._print_image)
         bot.addWidget(print_btn)
+        self.print_btn = print_btn
 
         bot.addStretch()
         main.addLayout(bot)
