@@ -26,7 +26,11 @@ switches and knobs so visitors can interact without touching a screen.
 
 THE THREE WINDOWS
 -----------------
-The app opens three windows placed side by side on the screen:
+The app opens three windows and places them automatically. If three monitors
+are connected it detects them, orders them left to right by their physical
+position, and gives each window its own screen at full size. With fewer
+monitors it falls back to placing the three windows side by side on one
+screen, which is the convenient arrangement for working on a laptop.
 
   Window 1 — Classical RGB Controller (left)
     Three toggle buttons: Red, Green, Blue.
@@ -209,9 +213,69 @@ The app auto-detects if an Arduino is connected. If none is found, it still
 works normally using only the on-screen buttons and keyboard.
 
 
+EXHIBITION MODE
+---------------
+The app runs in one of two modes, set by KIOSK_MODE at the top of main.py.
+
+  KIOSK_MODE = False (development)
+    Every action is a labelled button you can click with the mouse. Use this
+    while testing or demonstrating the app on a laptop.
+
+  KIOSK_MODE = True (exhibition — the default)
+    The buttons, the technical readouts, the Staff menu and the window title
+    bars are all hidden, so the screens look like an installation rather than
+    a piece of software. Nothing is removed: every action still works, driven
+    by the Arduino panel and by the keyboard commands listed below.
+
+    In this mode the two side screens also become the color itself — the
+    whole Window 1 screen shows the current classical color, and the whole
+    Window 3 screen shows the quantum color, so both are readable from
+    across the room instead of from a small swatch.
+
+
+KEYBOARD COMMANDS
+-----------------
+These work in exhibition mode and are the backup way to run the exhibit if
+the Arduino is not connected or stops responding. They work no matter which
+of the three windows was clicked last.
+
+  Classical side (Window 1)
+
+    R              Turn the Red channel on or off
+    G              Turn the Green channel on or off
+    B              Turn the Blue channel on or off
+    P  or  Space   Push the classical color into the selected region
+
+  Quantum side (Window 3)
+
+    Arrow keys     Move the selector box around the rainbow palette
+    [              Make the selector smaller (moves faster and more erratic)
+    ]              Make the selector larger  (moves slower and smoother)
+    A              Start or stop the automatic Heisenberg movement
+    Enter          Collapse — sample one color from inside the selector
+    Q              Collapse and push that color into the selected region
+                   in one step
+
+  Staff commands
+
+    Ctrl + S       Save the artwork as an image file
+    Ctrl + P       Print the artwork on the default printer
+    Ctrl + G       Go back to the gallery to choose another drawing
+    Esc            Leave exhibition mode and bring all the buttons back
+
+  Note on choosing a region: the visitor still picks which part of the
+  drawing to color by clicking it on the Window 2 screen. The keyboard
+  commands above set the color and push it into whatever region is
+  currently selected.
+
+  The full command list is also printed in the terminal each time the app
+  starts in exhibition mode, so staff do not need this document on hand.
+
+
 FILE OVERVIEW
 -------------
-  main.py              — starts the app, sets up the dark theme, arranges windows
+  main.py              — starts the app, sets up the dark theme, detects the
+                         monitors and places each window on its own screen
   app_state.py         — shared memory: holds the current colors and which
                          region is selected; notifies all windows of changes
   window1_rgb.py       — the classical RGB toggle buttons window
@@ -219,6 +283,9 @@ FILE OVERVIEW
   window3_quantum.py   — the quantum palette and Heisenberg motion window
   image_utils.py       — image math: region detection, color fill, quantum sampling
   arduino_bridge.py    — reads data from the Arduino hardware over USB
+  kiosk.py             — exhibition mode: hides the buttons, installs the
+                         keyboard commands, paints the color canvas
+  scaling.py           — grows a window's layout to fill a full screen
   generate_test_image.py — creates a mandala-style test drawing for demos
 
 
@@ -227,4 +294,19 @@ HOW TO RUN
   1. Install Python 3.11 or newer
   2. Run:  pip install -r requirements.txt
   3. Run:  python main.py
-  4. Three windows open on screen — the exhibit is ready
+  4. The windows open and arrange themselves — the exhibit is ready
+
+The app runs on Windows, macOS and Linux (including a Raspberry Pi).
+
+SETTING UP THE THREE SCREENS
+  If a window ends up on the wrong monitor, open main.py and look at the
+  settings at the top:
+
+    SCREEN_FOR_W1 = 0      which screen shows the classical RGB window
+    SCREEN_FOR_W2 = 1      which screen shows the drawing
+    SCREEN_FOR_W3 = 2      which screen shows the quantum palette
+
+  Screen 0 is the leftmost monitor, 1 the middle, 2 the rightmost. To find
+  out which physical monitor is which, set IDENTIFY_SCREENS = True and run
+  the app: each screen displays its own number for a few seconds. Then set
+  it back to False and adjust the three settings above to taste.
