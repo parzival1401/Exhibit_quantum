@@ -1,0 +1,230 @@
+EXHIBIT QUANTUM — PLAIN LANGUAGE EXPLANATION
+============================================
+For non-technical audiences: professors, stakeholders, and exhibit staff
+
+
+WHAT IS THIS PROJECT?
+---------------------
+Exhibit Quantum is an interactive museum application where visitors color a
+drawing using two different methods at the same time:
+
+  1. Classical coloring — you pick a color by turning Red, Green, and Blue
+     channels on or off like light switches. The result is always predictable.
+
+  2. Quantum coloring — you place a selector box on a rainbow palette and
+     "collapse" it to get a color. The app samples from the colors inside
+     the box using probability math, so the result has an element of chance,
+     similar to how quantum particles behave when measured.
+
+The side-by-side comparison lets visitors see the difference between a
+deterministic (classical) world and a probabilistic (quantum) one, using
+color as the teaching tool.
+
+The exhibit also supports physical hardware: an Arduino microcontroller with
+switches and knobs so visitors can interact without touching a screen.
+
+
+THE THREE WINDOWS
+-----------------
+The app opens three windows placed side by side on the screen:
+
+  Window 1 — Classical RGB Controller (left)
+    Three toggle buttons: Red, Green, Blue.
+    Each channel is either fully ON (255) or fully OFF (0).
+    You can make 8 possible colors: black, red, green, blue, yellow,
+    cyan, magenta, and white.
+    A "Push Color" button sends your chosen color to the left side of the drawing.
+
+  Window 2 — Image Processor (center)
+    This is the main exhibit screen. It has three pages:
+      - Welcome page: a large START button for touchscreen use.
+      - Gallery page: a grid of available drawings to color.
+      - Coloring page: the dual-panel drawing view where coloring happens.
+    Visitors click a region in the drawing to select it (it turns yellow),
+    then push colors from Window 1 or Window 3 into that region.
+    When done, they can save, print, or scan a QR code to take the image home.
+
+  Window 3 — Quantum Palette (right)
+    A 2D rainbow gradient (hue on the horizontal axis, brightness on vertical).
+    A white dashed square moves around the palette. Its movement is governed
+    by a simulation of the Heisenberg Uncertainty Principle:
+      - A small square = trying to pin down a precise color = the square moves
+        fast and erratically (like a particle with uncertain momentum).
+      - A large square = accepting a broad range = the square moves slowly
+        and smoothly.
+    Pressing "Collapse" samples a color from inside the square using probability
+    math and sends it to the right side of the drawing.
+
+
+MAIN LIBRARIES USED
+-------------------
+  PyQt6
+    The framework that builds all the windows, buttons, sliders, and visual
+    elements. Think of it as the scaffolding that holds the interface together.
+
+  NumPy
+    Handles all the math — color arrays, probability calculations, and
+    the pixel data that makes up images internally.
+
+  OpenCV (cv2) and Pillow (PIL)
+    Image processing: detecting regions in drawings, filling them with color,
+    blending outlines with fills, and saving final images.
+
+  PySerial
+    Allows the computer to talk to the Arduino hardware over a USB cable.
+    Reads switch states and knob positions in real time.
+
+  qrcode
+    Generates the QR code image that visitors scan to download their artwork.
+
+
+KEY FUNCTIONS IN PLAIN TERMS
+-----------------------------
+  identify_regions(image)
+    Looks at a drawing and finds all the white fill areas, separating them
+    from the black outlines. Each region (like a petal, a background section,
+    or a circle) gets a unique number so the app can track which color belongs
+    where.
+
+  apply_region_colors(image, regions, colors)
+    Takes the detected regions and paints each one with whatever color the
+    visitor assigned. Also highlights the currently selected region in yellow
+    so visitors can see what they are about to color.
+
+  quantum_collapse(palette, selector position, selector size)
+    Looks at all the colors inside the selector square. Computes the average
+    and spread of those colors. Then picks one color randomly, but weighted
+    by probability — colors closer to the center of the distribution are more
+    likely to be picked. This is the quantum measurement simulation.
+
+  apply_color_to_template(template, color)
+    When a visitor pushes a color, this function blends it into the drawing
+    in a natural way: solid fill in open areas, preserved black outlines,
+    and a smooth transition at edges.
+
+  _get_local_ip() and _start_file_server()
+    These two functions work together to let visitors download their artwork
+    on their phone. Explained in detail in the next section.
+
+
+QR CODE FEATURE — HOW IT WORKS
+--------------------------------
+When a visitor clicks the "Get QR Code" button, the following happens:
+
+  Step 1 — Save the artwork automatically
+    The current state of the drawing (both the classical and quantum sides
+    combined side by side) is saved as a PNG image file into a temporary
+    folder on the computer. No dialog box appears — it happens instantly.
+
+  Step 2 — Start a mini web server on the computer
+    The app launches a small web server directly inside itself using Python's
+    built-in HTTP tools. This server points to that temporary folder and
+    starts listening on a random available network port (for example, port
+    52341). The server runs silently in the background.
+
+  Step 3 — Detect the machine's local IP address
+    The app finds the IP address of the computer on the local Wi-Fi network
+    (for example, 192.168.1.45). This is the address that phones on the
+    same network can reach.
+
+  Step 4 — Build the download URL
+    It combines the IP and port into a URL like:
+      http://192.168.1.45:52341/quantum_artwork.png
+    This URL points directly to the saved image file.
+
+  Step 5 — Generate and display the QR code
+    The qrcode library encodes that URL into a QR code image, which appears
+    in a popup dialog on screen. The visitor scans it with their phone's
+    camera, the phone opens the URL in a browser, and the image downloads.
+
+  The server stays running for the entire session, so the QR code remains
+  scannable as long as the app is open. Each new "Get QR Code" click updates
+  the saved image with the latest artwork.
+
+
+QR CODE OPTIONS — WAYS THIS COULD BE IMPLEMENTED
+--------------------------------------------------
+The current approach (local HTTP server on the same Wi-Fi) is one of several
+ways this feature could work. Here are the main options:
+
+  Option A — Current implementation: Local HTTP server (same Wi-Fi network)
+    How it works: The exhibit computer serves the image over the local network.
+    Visitors scan and download without any internet connection.
+    Pros: Works offline, no external accounts needed, simple, free.
+    Cons: Visitor's phone must be on the same Wi-Fi network as the exhibit.
+          If the exhibit is on a closed museum network, visitor phones may
+          not have access.
+
+  Option B — Cloud upload (e.g., Google Drive, Dropbox, AWS S3)
+    How it works: The app uploads the artwork to a cloud storage service and
+    puts the public download link into the QR code.
+    Pros: Works on any network, visitor can scan from anywhere in the museum.
+    Cons: Requires internet, an account, and API credentials. Adds complexity
+          and a potential point of failure if the service is down.
+
+  Option C — Email or SMS link
+    How it works: Visitor enters their phone number or email on a form, and
+    the app sends them a link or attachment directly.
+    Pros: Does not require scanning; familiar to all ages.
+    Cons: Collects personal data (privacy concern), requires an internet
+          connection and an email/SMS service account.
+
+  Option D — Static QR code with a unique code per session
+    How it works: Each artwork is assigned a short code (e.g., "XK72"). A
+    backend server stores the image under that code. The QR code points to
+    a fixed website that asks the visitor to enter their code.
+    Pros: Clean URL, no IP exposure, works anywhere.
+    Cons: Requires a hosted server and a database, significantly more
+          infrastructure to maintain.
+
+  Option E — Encode image directly in the QR code (not practical at scale)
+    How it works: The image data is base64-encoded and stuffed directly into
+    the QR code.
+    Pros: Truly standalone, no network needed.
+    Cons: QR codes have a data limit (~3KB for a high-error-correction code).
+          A photo is far too large. Only works for tiny thumbnails or icons.
+
+  Summary table:
+
+    Option     | Works offline | Needs internet | Setup complexity | Privacy
+    -----------|---------------|----------------|------------------|--------
+    A (current)|      YES      |      NO        |      Low         |  Good
+    B (cloud)  |      NO       |      YES       |      Medium      |  OK
+    C (email)  |      NO       |      YES       |      Medium      |  Poor
+    D (server) |      NO       |      YES       |      High        |  Good
+    E (encoded)|      YES      |      NO        |      Low         |  Good
+               |               |                | (impractical size)
+
+
+HARDWARE (ARDUINO) — BRIEF SUMMARY
+------------------------------------
+An Arduino microcontroller connected via USB cable provides physical controls:
+  - 3 toggle switches → control the R, G, B channels in Window 1
+  - 3 potentiometer knobs → control the position and size of the selector
+    box in Window 3
+  - 1 button → push the classical color into the selected region
+  - 1 button → collapse the quantum selector and push that color
+
+The app auto-detects if an Arduino is connected. If none is found, it still
+works normally using only the on-screen buttons and keyboard.
+
+
+FILE OVERVIEW
+-------------
+  main.py              — starts the app, sets up the dark theme, arranges windows
+  app_state.py         — shared memory: holds the current colors and which
+                         region is selected; notifies all windows of changes
+  window1_rgb.py       — the classical RGB toggle buttons window
+  window2_image.py     — the main drawing and gallery window
+  window3_quantum.py   — the quantum palette and Heisenberg motion window
+  image_utils.py       — image math: region detection, color fill, quantum sampling
+  arduino_bridge.py    — reads data from the Arduino hardware over USB
+  generate_test_image.py — creates a mandala-style test drawing for demos
+
+
+HOW TO RUN
+----------
+  1. Install Python 3.11 or newer
+  2. Run:  pip install -r requirements.txt
+  3. Run:  python main.py
+  4. Three windows open on screen — the exhibit is ready
