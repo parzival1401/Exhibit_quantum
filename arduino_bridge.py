@@ -20,16 +20,48 @@ import threading
 from PyQt6.QtCore import QObject, pyqtSignal
 
 
+# USB vendor IDs that ship on Arduino and Arduino-compatible boards.
+# Matching on the VID is the only identification that works the same on
+# every OS: the device name does not (macOS and Linux expose /dev/…,
+# Windows exposes COM3) and the description is driver-dependent.
+_ARDUINO_VIDS = {
+    0x2341,   # Arduino SA
+    0x2A03,   # Arduino org (older .org boards)
+    0x1A86,   # QinHeng CH340 / CH341 clones
+    0x10C4,   # Silicon Labs CP210x
+    0x0403,   # FTDI
+    0x1B4F,   # SparkFun
+    0x239A,   # Adafruit
+}
+
+# Description/name fragments, as a fallback for boards whose VID is not
+# listed above. 'com' is deliberately absent: on Windows every serial
+# port is a COM port, so matching it would grab the first modem or
+# Bluetooth port on the machine.
+_ARDUINO_HINTS = ('arduino', 'ch340', 'ch341', 'cp210', 'ftdi',
+                  'usbmodem', 'usbserial', 'wchusbserial')
+
+
 def _auto_detect_port() -> str | None:
-    """Scan serial ports and return the first that looks like an Arduino."""
+    """Return the serial port of the first Arduino-looking device.
+
+    Works on Windows (COM3…), macOS (/dev/cu.usbmodem…) and Linux
+    (/dev/ttyUSB0, /dev/ttyACM0).
+    """
     try:
         import serial.tools.list_ports
-        for p in serial.tools.list_ports.comports():
-            desc   = (p.description or '').lower()
-            device = (p.device or '').lower()
-            if ('arduino' in desc or 'ch340' in desc or
-                    'ch341' in desc or 'usbmodem' in device or
-                    'usbserial' in device):
+        ports = list(serial.tools.list_ports.comports())
+
+        # Preferred: identify by USB vendor ID — OS-independent.
+        for p in ports:
+            if getattr(p, 'vid', None) in _ARDUINO_VIDS:
+                return p.device
+
+        # Fallback: match the description or the device name.
+        for p in ports:
+            haystack = f'{p.description or ""} {p.device or ""} ' \
+                       f'{getattr(p, "manufacturer", "") or ""}'.lower()
+            if any(hint in haystack for hint in _ARDUINO_HINTS):
                 return p.device
     except Exception:
         pass

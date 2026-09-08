@@ -32,7 +32,7 @@ import sys
 import os
 
 from PyQt6.QtWidgets import QApplication
-from PyQt6.QtGui import QPalette, QColor
+from PyQt6.QtGui import QPalette, QColor, QFont
 
 from app_state        import AppState
 from window1_rgb      import RGBControllerWindow
@@ -40,7 +40,7 @@ from window2_image    import ImageProcessorWindow
 from window3_quantum  import QuantumPaletteWindow
 from arduino_bridge   import ArduinoBridge
 from scaling          import apply_uniform_scaling
-from kiosk            import apply_kiosk_mode
+from kiosk            import apply_kiosk_mode, repaint_canvas
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -81,6 +81,27 @@ IDENTIFY_SCREENS = False
 # ─────────────────────────────────────────────────────────────────────────────
 # Dark-theme palette (applied globally via QApplication)
 # ─────────────────────────────────────────────────────────────────────────────
+
+def _install_font_substitutions():
+    """Map the font names used in the UI onto fonts that exist per OS.
+
+    The windows ask for 'Arial' and 'Courier'. Neither is guaranteed:
+    macOS has no 'Courier' family under that name (Qt warns and falls
+    back), and Linux has neither unless the MS fonts are installed.
+    Registering substitutes here fixes every call site at once, so the
+    exhibit looks the same on Windows, macOS and the Raspberry Pi.
+    """
+    QFont.insertSubstitutions('Arial', [
+        'Arial', 'Helvetica Neue', 'Helvetica',      # Windows / macOS
+        'Segoe UI', 'DejaVu Sans', 'Liberation Sans',  # Windows / Linux
+        'Noto Sans', 'sans-serif',
+    ])
+    QFont.insertSubstitutions('Courier', [
+        'Courier New', 'Menlo', 'Monaco',            # Windows / macOS
+        'Consolas', 'DejaVu Sans Mono',              # Windows / Linux
+        'Liberation Mono', 'Noto Sans Mono', 'monospace',
+    ])
+
 
 def _dark_palette() -> QPalette:
     p = QPalette()
@@ -143,6 +164,29 @@ def _identify_screens(app: QApplication, screens: list):
     sys.exit(app.exec())
 
 
+def _show_on_screen(win, screen):
+    """Show `win` full-screen on `screen`.
+
+    setGeometry() alone is not enough: showFullScreen() asks the window
+    system to fill "the window's screen", and until the window has been
+    shown it is still associated with the primary screen — so a second
+    window would snap back onto the primary display and leave its own
+    monitor empty. Creating the native handle first (via show()) lets us
+    hand the window to the right screen before going full-screen, which
+    is also the path that behaves consistently on Windows.
+    """
+    geo = screen.geometry()
+    win.setGeometry(geo)
+    win.show()                       # create the native window handle
+
+    handle = win.windowHandle()
+    if handle is not None:
+        handle.setScreen(screen)     # bind it to the intended monitor
+
+    win.setGeometry(geo)             # re-apply: setScreen can move the window
+    win.showFullScreen()
+
+
 def _place_windows(app: QApplication, w1, w2, w3):
     """Place the three windows across the detected monitors.
 
@@ -168,9 +212,7 @@ def _place_windows(app: QApplication, w1, w2, w3):
             (w3, SCREEN_FOR_W3),
         ]
         for win, idx in assignments:
-            geo = screens[idx].geometry()
-            win.setGeometry(geo)
-            win.showFullScreen()
+            _show_on_screen(win, screens[idx])
         print(f'  [display] {len(screens)} monitors detected — fullscreen per window '
               f'(W1→screen {SCREEN_FOR_W1}, W2→screen {SCREEN_FOR_W2}, W3→screen {SCREEN_FOR_W3}).\n')
         return
@@ -200,8 +242,12 @@ def _place_windows(app: QApplication, w1, w2, w3):
 def main():
     app = QApplication(sys.argv)
     app.setApplicationName('Quantum Color PoC')
+    # Fusion is the one style that renders identically on every OS; the
+    # native Windows and macOS styles ignore parts of the stylesheets the
+    # windows rely on.
     app.setStyle('Fusion')
     app.setPalette(_dark_palette())
+    _install_font_substitutions()
 
     if IDENTIFY_SCREENS:
         _identify_screens(app, _sorted_screens(app))
@@ -238,6 +284,11 @@ def main():
 
     # ── Position windows: fullscreen per monitor (3+ screens) or tiled ─────
     _place_windows(app, w1, w2, w3)
+
+    if KIOSK_MODE:
+        # Placement may have wrapped the side windows in a scaling view,
+        # which the canvas painted before placement would not have reached.
+        repaint_canvas(w1, w3)
 
     # Give Window 3 keyboard focus so arrow-keys work immediately
     w3.setFocus()

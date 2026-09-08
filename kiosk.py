@@ -35,9 +35,18 @@ Keyboard commands (work from any of the three windows)
       Ctrl+P         print the artwork
       Ctrl+G         return to the gallery
       Esc            leave kiosk mode (show the buttons again)
+
+Colour canvas
+─────────────
+With the controls gone, both side screens become the colour itself: the
+whole window background is painted with the live value, so the classical
+and quantum colours read across the room instead of from a small swatch.
+Window 1 follows the RGB switches; Window 3 previews the colour under the
+selector as it moves and snaps to the sampled value on collapse.
 """
 
-from PyQt6.QtGui import QKeySequence, QShortcut
+from PyQt6.QtWidgets import QGraphicsView
+from PyQt6.QtGui import QKeySequence, QShortcut, QColor
 from PyQt6.QtCore import Qt
 
 
@@ -157,6 +166,136 @@ def _install_commands(w1, w2, w3, shortcuts: list):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Colour canvas — the whole window becomes the colour
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _readable_ink(r: int, g: int, b: int) -> str:
+    """Black or white text, whichever stays legible on this background.
+
+    Same perceptual-luminance rule Window 1 already uses for its swatch,
+    so the two agree on where the light/dark boundary falls.
+    """
+    return '#000000' if (0.299 * r + 0.587 * g + 0.114 * b) > 140 else '#ffffff'
+
+
+def _paint_window(win, color):
+    """Paint `win`'s background with `color` and keep its text legible.
+
+    Three surfaces have to agree, because in full-screen mode the window
+    is wrapped by scaling.apply_uniform_scaling():
+
+      • the window itself      — the plain, unwrapped case;
+      • the scaling view       — it covers the window when wrapped;
+      • the scene behind it    — the design keeps its aspect ratio, so on
+                                 a 16:9 screen there is empty space at the
+                                 sides that would otherwise stay grey.
+
+    The window rule is restricted to QMainWindow so it cannot leak into
+    child widgets — the gradient palette must keep drawing its own pixels.
+    """
+    r, g, b = (int(v) for v in color)
+    ink = _readable_ink(r, g, b)
+    qcolor = QColor(r, g, b)
+
+    win.setStyleSheet(
+        f'QMainWindow {{ background-color: rgb({r},{g},{b}); }}'
+    )
+
+    central = win.centralWidget()
+    if isinstance(central, QGraphicsView):
+        central.setBackgroundBrush(qcolor)
+        scene = central.scene()
+        if scene is not None:
+            scene.setBackgroundBrush(qcolor)
+
+    # Labels are transparent by default but inherit no colour, so recolour
+    # the ones that sit directly on the canvas.
+    for lbl in getattr(win, '_canvas_labels', ()):
+        if lbl is not None:
+            lbl.setStyleSheet(f'color: {ink}; background: transparent;')
+
+
+def _install_canvas(w1, w3):
+    """Make both side windows paint themselves with their live colour."""
+
+    # ── Window 1 — follows the RGB switches ────────────────────────────
+    # The title is the only text left on this screen once the controls
+    # are hidden, so it is the only label that needs recolouring.
+    w1._canvas_labels = [c for c in w1.findChildren(type(w1.rgb_label))
+                         if c is not w1.preview]
+
+    def paint_w1(color):
+        _paint_window(w1, color)
+
+    w1.state.rgb_color_changed.connect(paint_w1)
+    paint_w1(w1.state.rgb_color)
+
+    # ── Window 3 — previews under the selector, snaps on collapse ──────
+    w3._canvas_labels = [c for c in w3.findChildren(type(w3.result_lbl))
+                         if c is not w3.swatch]
+
+    def mean_under_selector():
+        """Average colour of the pixels the selector currently covers.
+
+        A preview, deliberately not a collapse: it is the mean, with no
+        random sampling, so moving the selector shows where the colour
+        would come from without pre-empting the collapse itself.
+        """
+        region = w3.palette.selected_pixels()
+        if region.size == 0:
+            return None
+        return tuple(int(v) for v in region.reshape(-1, 3).mean(axis=0))
+
+    def preview():
+        color = mean_under_selector()
+        if color is not None:
+            _paint_window(w3, color)
+
+    # move_selector() is the single place the selector position changes —
+    # arrow keys, the Arduino pots and the Heisenberg animation all route
+    # through it, so wrapping it catches every kind of movement.
+    original_move = w3.palette.move_selector
+
+    def move_and_preview(dx, dy):
+        moved = original_move(dx, dy)
+        preview()
+        return moved
+
+    w3.palette.move_selector = move_and_preview
+
+    # Resizing the selector changes which pixels it covers too.
+    original_set_size = w3.palette.set_selector_size
+
+    def set_size_and_preview(size):
+        original_set_size(size)
+        preview()
+
+    w3.palette.set_selector_size = set_size_and_preview
+
+    # The Arduino pots assign sq_cx/sq_cy/sq_size straight onto the
+    # palette instead of going through the methods above, so the preview
+    # has to be hooked at apply_pots as well or hardware movement — the
+    # exhibit's main input — would leave the canvas stale.
+    #
+    # This is a hook on the window rather than a replacement of the bound
+    # method: main.py has already connected pots_changed to the original
+    # w3.apply_pots by the time kiosk mode runs, and Qt holds on to that
+    # original, so reassigning the attribute here would never be called.
+    w3._kiosk_after_pots = preview
+
+    # The collapse result overrides the preview until the next movement.
+    w3.state.quantum_color_changed.connect(lambda c: _paint_window(w3, c))
+
+    # Exposed so main.py can repaint once the windows have been placed:
+    # full-screen placement wraps them in a scaling view that does not
+    # exist yet, and a canvas painted only now would miss it.
+    w1._kiosk_repaint = lambda: paint_w1(w1.state.rgb_color)
+    w3._kiosk_repaint = preview
+
+    preview()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Entry point
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -176,6 +315,10 @@ def apply_kiosk_mode(w1, w2, w3, frameless: bool = True):
     _hide_window1(w1)
     _hide_window2(w2)
     _hide_window3(w3)
+
+    # After the controls are gone, give the emptied side screens over to
+    # the colour itself.
+    _install_canvas(w1, w3)
 
     if frameless:
         for win in (w1, w2, w3):
@@ -200,6 +343,19 @@ def apply_kiosk_mode(w1, w2, w3, frameless: bool = True):
           '  ╚══════════════════════════════════════════════════════╝\n')
 
     return shortcuts
+
+
+def repaint_canvas(*windows):
+    """Repaint the colour canvas on any of `windows` that has one.
+
+    Call after the windows are placed: full-screen placement re-parents
+    the content into a scaling view, and the canvas has to be applied to
+    that view as well as to the window.
+    """
+    for win in windows:
+        hook = getattr(win, '_kiosk_repaint', None)
+        if hook is not None:
+            hook()
 
 
 def _exit_kiosk(w1, w2, w3):

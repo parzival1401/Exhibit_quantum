@@ -102,7 +102,13 @@ def _start_file_server(directory: str):
         def log_message(self, *a):
             pass   # suppress console noise
 
-    server = socketserver.TCPServer(('', 0), _Silent)
+    class _Server(socketserver.TCPServer):
+        # SO_REUSEADDR means something different on Windows: it lets an
+        # unrelated process bind a port this server is already using.
+        # The port is picked by the OS anyway, so nothing needs it.
+        allow_reuse_address = (os.name != 'nt')
+
+    server = _Server(('', 0), _Silent)
     port   = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
     return server, port

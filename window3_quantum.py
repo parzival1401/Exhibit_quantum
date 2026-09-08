@@ -395,6 +395,14 @@ class QuantumPaletteWindow(QMainWindow):
         self.palette.update()
         self.slider.setValue(new_size)
 
+        # Kiosk mode installs a hook here so the colour canvas follows the
+        # pots. This method writes sq_cx/sq_cy/sq_size directly rather than
+        # going through move_selector(), so there is nothing else for it to
+        # observe. No-op when not in kiosk mode.
+        hook = getattr(self, '_kiosk_after_pots', None)
+        if hook is not None:
+            hook()
+
     # ── Heisenberg helpers ─────────────────────────────────────────────────
 
     def _momentum_spread(self) -> float:

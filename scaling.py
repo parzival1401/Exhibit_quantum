@@ -59,6 +59,12 @@ def apply_uniform_scaling(window):
     scene.addItem(proxy)
     scene.setSceneRect(0, 0, design_size.width(), design_size.height())
 
+    # Let whatever is painted behind the scene show through the design.
+    # Kiosk mode paints the window/scene with the live colour, and an
+    # opaque content widget would sit on top of it as a grey slab.
+    content.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+    content.setAutoFillBackground(False)
+
     view = _ScalingView(scene)
     window.setCentralWidget(view)
     return view
