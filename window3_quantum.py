@@ -75,6 +75,10 @@ class GradientPaletteWidget(QWidget):
         self.sq_cy   = PAL_H // 2
         self.sq_size = 50
 
+        # Called whenever the selector moves or is resized, by any route.
+        # The window sets this to publish the live preview colour.
+        self.on_selector_changed = None
+
         # The widget grows with the window, but the selector coordinates
         # stay in gradient space (PAL_W × PAL_H) and are scaled only when
         # painting. Sampling therefore keeps indexing the gradient array
@@ -90,6 +94,10 @@ class GradientPaletteWidget(QWidget):
         qimg = QImage(arr.data, w, h, w * c, QImage.Format.Format_RGB888)
         return QPixmap.fromImage(qimg)
 
+    def _notify(self):
+        if self.on_selector_changed is not None:
+            self.on_selector_changed()
+
     def move_selector(self, dx: int, dy: int) -> tuple:
         """Move the selector and return the actual displacement applied."""
         half      = self.sq_size // 2
@@ -98,6 +106,7 @@ class GradientPaletteWidget(QWidget):
         self.sq_cx = max(half, min(PAL_W - half, self.sq_cx + dx))
         self.sq_cy = max(half, min(PAL_H - half, self.sq_cy + dy))
         self.update()
+        self._notify()
         return (self.sq_cx - old_cx, self.sq_cy - old_cy)
 
     def set_selector_size(self, size: int):
@@ -106,6 +115,7 @@ class GradientPaletteWidget(QWidget):
         self.sq_cx = max(half, min(PAL_W - half, self.sq_cx))
         self.sq_cy = max(half, min(PAL_H - half, self.sq_cy))
         self.update()
+        self._notify()
 
     def selected_pixels(self) -> np.ndarray:
         half = self.sq_size // 2
@@ -289,6 +299,7 @@ class QuantumPaletteWindow(QMainWindow):
 
         # ── Gradient palette — the canvas, takes every spare pixel ─────
         self.palette = GradientPaletteWidget(self._gradient)
+        self.palette.on_selector_changed = self._publish_preview
         layout.addWidget(self.palette, stretch=1)
 
         # ── Heisenberg trade-off meters, along the bottom ──────────────
@@ -506,13 +517,12 @@ class QuantumPaletteWindow(QMainWindow):
         self.slider.setValue(new_size)
         self._refresh_uncertainty()
 
-        # Kiosk mode installs a hook here so the colour canvas follows the
-        # pots. This method writes sq_cx/sq_cy/sq_size directly rather than
-        # going through move_selector(), so there is nothing else for it to
-        # observe. No-op when not in kiosk mode.
-        hook = getattr(self, '_kiosk_after_pots', None)
-        if hook is not None:
-            hook()
+        # This method writes sq_cx/sq_cy/sq_size directly rather than going
+        # through move_selector(), so the palette's own notification never
+        # fires — publish the preview here instead. Everything downstream
+        # (Window 2's live fill, the kiosk colour canvas) follows from the
+        # quantum_color signal this raises.
+        self._publish_preview()
 
     # ── Heisenberg helpers ─────────────────────────────────────────────────
 
@@ -625,6 +635,32 @@ class QuantumPaletteWindow(QMainWindow):
 
         # Live uncertainty display
         self._refresh_uncertainty()
+
+    # ── Live preview ───────────────────────────────────────────────────────
+
+    def _preview_color(self) -> tuple | None:
+        """Mean colour of the pixels the selector currently covers.
+
+        The mean, not a collapse: it shows where the colour would be
+        drawn from without performing the random sampling, so moving the
+        selector previews continuously and the collapse stays the moment
+        of chance.
+        """
+        region = self.palette.selected_pixels()
+        if region.size == 0:
+            return None
+        return tuple(int(v) for v in region.reshape(-1, 3).mean(axis=0))
+
+    def _publish_preview(self):
+        """Push the previewed colour to the shared state.
+
+        Window 2 fills the selected region from this, so the drawing
+        follows the selector as it moves rather than waiting for the
+        collapse.
+        """
+        color = self._preview_color()
+        if color is not None:
+            self.state.quantum_color = color
 
     # ── Uncertainty display ────────────────────────────────────────────────
 

@@ -447,6 +447,14 @@ class ImageProcessorWindow(QMainWindow):
         self.state.push_rgb_requested.connect(self._push_rgb)
         self.state.push_quantum_requested.connect(self._push_quantum)
 
+        # Colour follows the controls live: changing a channel or moving
+        # the quantum selector repaints the selected region immediately,
+        # so a visitor sees cause and effect instead of having to press a
+        # push button afterwards. The push signals above still work — the
+        # Arduino buttons and the keyboard commands are unchanged.
+        self.state.rgb_color_changed.connect(self._live_fill_left)
+        self.state.quantum_color_changed.connect(self._live_fill_right)
+
     # ── Stacked UI ────────────────────────────────────────────────────────
 
     def _build_ui(self):
@@ -951,6 +959,29 @@ class ImageProcessorWindow(QMainWindow):
                 'Clicked on an outline — click inside a coloured region'
             )
 
+    # ── Live fill ─────────────────────────────────────────────────────────
+    # Driven by the colour signals rather than by a button press. Both are
+    # quiet when no region is selected: these fire on every channel toggle
+    # and every selector move, so a warning here would be noise, and the
+    # push handlers below still report that case when a visitor asks for
+    # the fill explicitly.
+
+    def _live_fill_left(self, color):
+        rid = self.state.selected_region
+        if rid <= 0 or self.template_array is None:
+            return
+        self.left_region_colors[rid] = tuple(color)
+        self._render_left()
+        self.left_panel._set_swatch(tuple(color))
+
+    def _live_fill_right(self, color):
+        rid = self.state.selected_region
+        if rid <= 0 or self.template_array is None:
+            return
+        self.right_region_colors[rid] = tuple(color)
+        self._render_right()
+        self.right_panel._set_swatch(tuple(color))
+
     # ── Push handlers ─────────────────────────────────────────────────────
 
     def _push_rgb(self):
@@ -979,12 +1010,22 @@ class ImageProcessorWindow(QMainWindow):
 
     # ── Render ────────────────────────────────────────────────────────────
 
+    # The selected region is no longer tinted yellow. Colour now follows
+    # the controls live, so the region identifies itself by changing —
+    # a marker on top of it would only hide the thing it is pointing at.
+    # Passing -1 keeps apply_region_colors' highlight support intact for
+    # anything that wants it back.
+    _HIGHLIGHT_SELECTION = False
+
+    def _highlighted_region(self) -> int:
+        return self.state.selected_region if self._HIGHLIGHT_SELECTION else -1
+
     def _render_left(self):
         if self.template_array is None or self.region_labels is None:
             return
         arr = apply_region_colors(
             self.template_array, self.region_labels,
-            self.left_region_colors, self.state.selected_region,
+            self.left_region_colors, self._highlighted_region(),
         )
         self.left_panel.update_image(arr)
 
@@ -993,7 +1034,7 @@ class ImageProcessorWindow(QMainWindow):
             return
         arr = apply_region_colors(
             self.template_array, self.region_labels,
-            self.right_region_colors, self.state.selected_region,
+            self.right_region_colors, self._highlighted_region(),
         )
         self.right_panel.update_image(arr)
 
@@ -1002,14 +1043,19 @@ class ImageProcessorWindow(QMainWindow):
     def _on_region_selected(self, rid: int):
         if rid > 0:
             self.sel_label.setText(
-                f'Region #{rid} selected  —  push a colour from Window 1 or Window 3'
+                f'Region #{rid} selected  —  it follows the colours live'
             )
             self.sel_label.setStyleSheet('color: #ffdd44;')
+            # With no yellow marker, taking the current colours straight
+            # away is what shows which region was picked.
+            self._live_fill_left(self.state.rgb_color)
+            self._live_fill_right(self.state.quantum_color)
         else:
             self.sel_label.setText(
-                'Click a region on the image to select it → then push a colour'
+                'Click a region on the image to select it'
             )
             self.sel_label.setStyleSheet('color: #aaaaaa;')
+
         self._render_left()
         self._render_right()
 

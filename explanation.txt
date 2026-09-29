@@ -45,8 +45,8 @@ screen, which is the convenient arrangement for working on a laptop.
       - Welcome page: a large START button for touchscreen use.
       - Gallery page: a grid of available drawings to color.
       - Coloring page: the dual-panel drawing view where coloring happens.
-    Visitors click a region in the drawing to select it (it turns yellow),
-    then push colors from Window 1 or Window 3 into that region.
+    Visitors click a region in the drawing to select it, and from then on
+    that region follows the colors live — no button press needed.
     When done, they can save, print, or scan a QR code to take the image home.
 
   Window 3 — Quantum Palette (right)
@@ -93,8 +93,9 @@ KEY FUNCTIONS IN PLAIN TERMS
 
   apply_region_colors(image, regions, colors)
     Takes the detected regions and paints each one with whatever color the
-    visitor assigned. Also highlights the currently selected region in yellow
-    so visitors can see what they are about to color.
+    visitor assigned. It can also tint the selected region yellow, but the
+    exhibit leaves that off: the region follows the colors live, so it
+    identifies itself by changing rather than by wearing a marker.
 
   quantum_collapse(palette, selector position, selector size)
     Looks at all the colors inside the selector square. Computes the average
@@ -231,6 +232,25 @@ The app runs in one of two modes, set by KIOSK_MODE at the top of main.py.
     The center screen (Window 2) keeps everything — it is the main menu, and
     it is where visitors choose a drawing and then save, print or scan their
     artwork. Only the two side screens are stripped down.
+
+
+HOW COLORING WORKS
+------------------
+A visitor clicks a region of the drawing once. From that moment the region
+follows both colors live:
+
+  - Flipping a Red, Green or Blue switch repaints the left side instantly.
+  - Moving the quantum selector repaints the right side instantly, and the
+    collapse then settles it on the sampled color.
+
+There is no "push" step and no yellow marker on the selected region. The
+region shows the current color the moment it is picked, so it is obvious
+which one is selected, and a visitor sees cause and effect directly: move
+a switch, watch that part of the drawing change.
+
+The push buttons still exist and still work — the Arduino's two action
+buttons and the P / Q keyboard commands use them — they are simply no
+longer necessary for ordinary coloring.
 
 
 WHAT EACH SCREEN LOOKS LIKE

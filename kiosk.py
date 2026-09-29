@@ -232,56 +232,14 @@ def _install_canvas(w1, w3):
     w3._canvas_labels = [c for c in w3.findChildren(type(w3.result_lbl))
                          if c is not w3.swatch]
 
-    def mean_under_selector():
-        """Average colour of the pixels the selector currently covers.
-
-        A preview, deliberately not a collapse: it is the mean, with no
-        random sampling, so moving the selector shows where the colour
-        would come from without pre-empting the collapse itself.
-        """
-        region = w3.palette.selected_pixels()
-        if region.size == 0:
-            return None
-        return tuple(int(v) for v in region.reshape(-1, 3).mean(axis=0))
-
+    # Window 3 publishes its live preview colour to quantum_color as the
+    # selector moves, and sets it again on collapse, so following that one
+    # signal keeps the canvas current for every kind of movement — arrow
+    # keys, the Arduino pots, the Heisenberg animation and the collapse
+    # itself. No method wrapping is needed here.
     def preview():
-        color = mean_under_selector()
-        if color is not None:
-            _paint_window(w3, color)
+        _paint_window(w3, w3.state.quantum_color)
 
-    # move_selector() is the single place the selector position changes —
-    # arrow keys, the Arduino pots and the Heisenberg animation all route
-    # through it, so wrapping it catches every kind of movement.
-    original_move = w3.palette.move_selector
-
-    def move_and_preview(dx, dy):
-        moved = original_move(dx, dy)
-        preview()
-        return moved
-
-    w3.palette.move_selector = move_and_preview
-
-    # Resizing the selector changes which pixels it covers too.
-    original_set_size = w3.palette.set_selector_size
-
-    def set_size_and_preview(size):
-        original_set_size(size)
-        preview()
-
-    w3.palette.set_selector_size = set_size_and_preview
-
-    # The Arduino pots assign sq_cx/sq_cy/sq_size straight onto the
-    # palette instead of going through the methods above, so the preview
-    # has to be hooked at apply_pots as well or hardware movement — the
-    # exhibit's main input — would leave the canvas stale.
-    #
-    # This is a hook on the window rather than a replacement of the bound
-    # method: main.py has already connected pots_changed to the original
-    # w3.apply_pots by the time kiosk mode runs, and Qt holds on to that
-    # original, so reassigning the attribute here would never be called.
-    w3._kiosk_after_pots = preview
-
-    # The collapse result overrides the preview until the next movement.
     w3.state.quantum_color_changed.connect(lambda c: _paint_window(w3, c))
 
     # Exposed so main.py can repaint once the windows have been placed:
