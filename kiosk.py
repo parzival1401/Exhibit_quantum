@@ -67,10 +67,14 @@ _W1_CHROME = ('push_btn', 'rgb_label', 'status')
 # main menu, and visitors save, print and fetch their QR code from it.
 _W2_CHROME = ()
 
-# Window 3 keeps the palette and the uncertainty meters; the meters
-# replace the slider and the formula read-out they used to sit beside.
+# Window 3 keeps the gradient and the uncertainty meters, and nothing
+# else — the same shape as Window 1, which is its colour plus a bar of
+# lamps. The meters replace the slider and the formula read-out; the
+# collapsed colour is read from the drawing rather than from a swatch;
+# and the instructions described controls that are no longer on screen.
 _W3_CHROME = ('anim_btn', 'collapse_btn', 'push_btn', 'pots_btn',
-              'slider', 'size_lbl', 'heis_lbl', 'stats_lbl')
+              'slider_row', 'heis_lbl', 'stats_lbl',
+              'title_lbl', 'info_lbl', 'result_row')
 
 
 def _hide(widget):

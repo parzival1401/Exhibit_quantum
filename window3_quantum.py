@@ -296,20 +296,21 @@ class QuantumPaletteWindow(QMainWindow):
         layout.setSpacing(7)
         layout.setContentsMargins(16, 12, 16, 12)
 
-        # Title
-        title = QLabel('Quantum Probability Palette')
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setFont(QFont('Arial', 14, QFont.Weight.Bold))
-        layout.addWidget(title)
+        # Title and instructions. Kept as attributes so the exhibit can
+        # hide them: on the wall the gradient speaks for itself, and the
+        # instructions describe controls that are not on screen.
+        self.title_lbl = QLabel('Quantum Probability Palette')
+        self.title_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.title_lbl.setFont(QFont('Arial', 14, QFont.Weight.Bold))
+        layout.addWidget(self.title_lbl)
 
-        # Instructions
-        info = QLabel(
+        self.info_lbl = QLabel(
             '↑↓←→ Move  ·  Slider: Size & Velocity  ·  Enter / ⚡: Collapse'
         )
-        info.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        info.setFont(QFont('Arial', 9))
-        info.setStyleSheet('color: #888888;')
-        layout.addWidget(info)
+        self.info_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.info_lbl.setFont(QFont('Arial', 9))
+        self.info_lbl.setStyleSheet(f'color: {theme.FG_MUTED};')
+        layout.addWidget(self.info_lbl)
 
         # ── Gradient palette — the canvas, takes every spare pixel ─────
         self.palette = GradientPaletteWidget(self._gradient)
@@ -321,8 +322,13 @@ class QuantumPaletteWindow(QMainWindow):
         layout.addWidget(self.uncertainty_bar)
 
         # ── Size / velocity slider ─────────────────────────────────────
-        slider_row = QHBoxLayout()
+        # Wrapped in a widget so the whole row hides as a unit. Hiding the
+        # slider alone would leave its "Small (fast)" and "Large (slow)"
+        # captions stranded on the screen, which is what used to happen.
+        self.slider_row = QWidget()
+        slider_row = QHBoxLayout(self.slider_row)
         slider_row.setSpacing(10)
+        slider_row.setContentsMargins(0, 0, 0, 0)
 
         slider_row.addWidget(QLabel('Small\n(fast)'))
 
@@ -341,7 +347,7 @@ class QuantumPaletteWindow(QMainWindow):
         self.size_lbl.setFont(QFont('Arial', 10))
         slider_row.addWidget(self.size_lbl)
 
-        layout.addLayout(slider_row)
+        layout.addWidget(self.slider_row)
 
         # ── Heisenberg uncertainty display ─────────────────────────────
         self.heis_lbl = QLabel(self._heisenberg_text())
@@ -393,15 +399,21 @@ class QuantumPaletteWindow(QMainWindow):
         layout.addWidget(self.push_btn)
 
         # ── Result display ─────────────────────────────────────────────
-        result_row = QHBoxLayout()
+        # Wrapped in a widget rather than added as a bare layout, so the
+        # exhibit can hide the row in one go. The collapsed colour now
+        # lands on the drawing itself, which is a better swatch than a
+        # rectangle on this screen.
+        self.result_row = QWidget()
+        result_row = QHBoxLayout(self.result_row)
         result_row.setSpacing(10)
+        result_row.setContentsMargins(0, 0, 0, 0)
 
         result_row.addWidget(QLabel('Collapsed:'))
 
         self.swatch = QLabel()
         self.swatch.setFixedSize(60, 34)
         self.swatch.setStyleSheet(
-            'background-color: rgb(90,60,180); border: 2px solid #555;'
+            f'background-color: rgb(90,60,180); border: 2px solid {theme.BORDER};'
         )
         result_row.addWidget(self.swatch)
 
@@ -410,7 +422,7 @@ class QuantumPaletteWindow(QMainWindow):
         result_row.addWidget(self.result_lbl)
 
         result_row.addStretch()
-        layout.addLayout(result_row)
+        layout.addWidget(self.result_row)
 
         # Stats line
         self.stats_lbl = QLabel(
