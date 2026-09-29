@@ -285,6 +285,12 @@ def main():
     bridge.collapse_pressed.connect(w3.collapse_and_push)       # SW_COL  → collapse + right image
     bridge.start()
 
+    # Release the serial port on the way out. The reader thread is a
+    # daemon and would die with the process anyway, but the exhibit is
+    # now quit deliberately (X) and may be restarted straight away, so
+    # the port should be closed rather than left to the OS to reclaim.
+    app.aboutToQuit.connect(bridge.stop)
+
     # ── Exhibition presentation ───────────────────────────────────────────
     # Applied before the windows are shown: the frameless flag re-shows a
     # window if it is set later, which would fight the placement below.

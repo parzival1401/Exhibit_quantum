@@ -98,6 +98,7 @@ panel is unplugged:
 | `Q` | Collapse and push |
 | `Ctrl+S` / `Ctrl+P` / `Ctrl+G` | Save / print / back to gallery |
 | `Esc` | Reveal the hidden controls |
+| `X` | Quit the exhibit (no confirmation) |
 
 ## Adding drawings
 

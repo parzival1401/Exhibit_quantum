@@ -35,6 +35,7 @@ Keyboard commands (work from any of the three windows)
       Ctrl+P         print the artwork
       Ctrl+G         return to the gallery
       Esc            leave kiosk mode (show the buttons again)
+      X              quit the exhibit
 
 Colour canvas
 ─────────────
@@ -45,6 +46,7 @@ Window 1 follows the RGB switches; Window 3 previews the colour under the
 selector as it moves and snaps to the sampled value on collapse.
 """
 
+from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtCore import Qt
 
@@ -121,6 +123,17 @@ def _bind(window, key: str, handler):
     return sc
 
 
+def _quit():
+    """Close the exhibit.
+
+    quit() rather than a hard exit, so Qt unwinds normally: the Arduino
+    serial port is released and the QR file server's thread is dropped
+    with the process instead of being orphaned.
+    """
+    print('\n  [kiosk] Quit — closing the exhibit.\n')
+    QApplication.quit()
+
+
 def _install_commands(w1, w2, w3, shortcuts: list):
     # ── Window 1 — classical colour ────────────────────────────────────
     # Drive the real buttons rather than reimplementing the toggle, so
@@ -166,6 +179,11 @@ def _install_commands(w1, w2, w3, shortcuts: list):
     shortcuts.append(_bind(w2, 'Ctrl+S', w2._save_image))
     shortcuts.append(_bind(w2, 'Ctrl+P', w2._print_image))
     shortcuts.append(_bind(w2, 'Ctrl+G', w2._go_to_gallery))
+
+    # Closes the exhibit. A bare letter, so it needs no modifier at the
+    # end of the day — X because every other letter on the keyboard is
+    # already an exhibit action, and this one is not next to them.
+    shortcuts.append(_bind(w2, 'X', _quit))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -234,7 +252,7 @@ def apply_kiosk_mode(w1, w2, w3, frameless: bool = True):
           '  ║  ↑↓←→ move   [ ] resize          A  auto-move        ║\n'
           '  ║  Enter collapse                  Q  collapse+push    ║\n'
           '  ║  Ctrl+S save   Ctrl+P print      Ctrl+G gallery      ║\n'
-          '  ║  Esc  reveal the hidden controls                     ║\n'
+          '  ║  Esc  reveal the hidden controls  X  quit            ║\n'
           '  ╚══════════════════════════════════════════════════════╝\n')
 
     return shortcuts

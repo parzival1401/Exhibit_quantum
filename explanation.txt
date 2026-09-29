@@ -332,6 +332,7 @@ of the three windows was clicked last.
     Ctrl + P       Print the artwork on the default printer
     Ctrl + G       Go back to the gallery to choose another drawing
     Esc            Leave exhibition mode and bring all the buttons back
+    X              Quit — closes the exhibit straight away, no prompt
 
   Note on choosing a region: the visitor still picks which part of the
   drawing to color by clicking it on the Window 2 screen. The keyboard
