@@ -11,10 +11,12 @@ immediately triggers a repaint in Window 2's left panel.
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QSizePolicy,
+    QPushButton, QLabel, QSizePolicy, QGraphicsView,
 )
 from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QColor
+
+import theme
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -118,7 +120,9 @@ class RGBControllerWindow(QMainWindow):
         lamp_bar.setLayout(lamp_row)
         lamp_row.setContentsMargins(20, 14, 20, 20)
         # Dark strip so the lamps stay readable whatever colour is mixed.
-        lamp_bar.setStyleSheet('background-color: rgba(0, 0, 0, 150);')
+        # The same bar the uncertainty meters sit in on Window 3, so the
+        # two side screens read as one piece of furniture.
+        lamp_bar.setStyleSheet(theme.bottom_bar())
         layout.addWidget(lamp_bar)
 
         # Kept for the code that still reads them (kiosk mode hides these,
@@ -198,17 +202,42 @@ class RGBControllerWindow(QMainWindow):
     def _colour_name(self, r: int, g: int, b: int) -> str:
         return self._COLOUR_NAMES.get((r, g, b), '')
 
+    def _mix(self) -> tuple:
+        """The current colour: each channel fully on or fully off."""
+        return tuple(255 if self._channels.get(ch) else 0
+                     for ch in ('R', 'G', 'B'))
+
+    def repaint_background(self):
+        """Paint the window with the current mix.
+
+        On this screen the colour is the canvas, so it goes on the window
+        rather than on a widget and runs edge to edge behind the lamp bar.
+
+        Full-screen placement wraps the layout in a scaling view, which
+        would otherwise cover the window with its own background, so the
+        view and its scene are painted too. main.py calls this again after
+        placement, once that view exists.
+        """
+        r, g, b = self._mix()
+
+        self.setStyleSheet(
+            f'QMainWindow {{ background-color: rgb({r},{g},{b}); }}'
+        )
+
+        central = self.centralWidget()
+        if isinstance(central, QGraphicsView):
+            brush = QColor(r, g, b)
+            central.setBackgroundBrush(brush)
+            scene = central.scene()
+            if scene is not None:
+                scene.setBackgroundBrush(brush)
+
     def _refresh_preview(self):
         r = 255 if self._channels.get('R') else 0
         g = 255 if self._channels.get('G') else 0
         b = 255 if self._channels.get('B') else 0
 
-        # The colour goes on the window, not on the preview, so it runs
-        # edge to edge behind the lamp bar. The preview stays transparent
-        # and empty — the screen shows the colour and nothing else.
-        self.setStyleSheet(
-            f'QMainWindow {{ background-color: rgb({r},{g},{b}); }}'
-        )
+        self.repaint_background()
 
         # Kept up to date for the hidden labels other code still reads.
         self.rgb_label.setText(f'R={r:>3}   G={g:>3}   B={b:>3}')

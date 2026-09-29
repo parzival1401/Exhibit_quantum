@@ -45,8 +45,7 @@ Window 1 follows the RGB switches; Window 3 previews the colour under the
 selector as it moves and snaps to the sampled value on collapse.
 """
 
-from PyQt6.QtWidgets import QGraphicsView
-from PyQt6.QtGui import QKeySequence, QShortcut, QColor
+from PyQt6.QtGui import QKeySequence, QShortcut
 from PyQt6.QtCore import Qt
 
 
@@ -173,81 +172,20 @@ def _install_commands(w1, w2, w3, shortcuts: list):
 # Colour canvas — the whole window becomes the colour
 # ─────────────────────────────────────────────────────────────────────────────
 
-def _readable_ink(r: int, g: int, b: int) -> str:
-    """Black or white text, whichever stays legible on this background.
-
-    Same perceptual-luminance rule Window 1 already uses for its swatch,
-    so the two agree on where the light/dark boundary falls.
-    """
-    return '#000000' if (0.299 * r + 0.587 * g + 0.114 * b) > 140 else '#ffffff'
-
-
-def _paint_window(win, color):
-    """Paint `win`'s background with `color` and keep its text legible.
-
-    Three surfaces have to agree, because in full-screen mode the window
-    is wrapped by scaling.apply_uniform_scaling():
-
-      • the window itself      — the plain, unwrapped case;
-      • the scaling view       — it covers the window when wrapped;
-      • the scene behind it    — the design keeps its aspect ratio, so on
-                                 a 16:9 screen there is empty space at the
-                                 sides that would otherwise stay grey.
-
-    The window rule is restricted to QMainWindow so it cannot leak into
-    child widgets — the gradient palette must keep drawing its own pixels.
-    """
-    r, g, b = (int(v) for v in color)
-    ink = _readable_ink(r, g, b)
-    qcolor = QColor(r, g, b)
-
-    win.setStyleSheet(
-        f'QMainWindow {{ background-color: rgb({r},{g},{b}); }}'
-    )
-
-    central = win.centralWidget()
-    if isinstance(central, QGraphicsView):
-        central.setBackgroundBrush(qcolor)
-        scene = central.scene()
-        if scene is not None:
-            scene.setBackgroundBrush(qcolor)
-
-    # Labels are transparent by default but inherit no colour, so recolour
-    # the ones that sit directly on the canvas.
-    for lbl in getattr(win, '_canvas_labels', ()):
-        if lbl is not None:
-            lbl.setStyleSheet(f'color: {ink}; background: transparent;')
-
-
 def _install_canvas(w1, w3):
-    """Give Window 3 a colour canvas behind its palette.
+    """Nothing to install: both side screens carry their own canvas.
 
-    Window 1 is not touched here: it paints its own background from
-    _refresh_preview() in both modes, so the colour fills that screen
-    whether or not kiosk mode is on, and a second painter would only be
-    a way for the two to disagree.
+    Window 1 paints its background from _refresh_preview() — on that
+    screen the mixed colour *is* the canvas, and it fills the window.
+
+    Window 3's canvas is the gradient palette, which paints its own
+    pixels. Flooding the rest of that window with the collapsed colour
+    as well used to bury the screen in whatever had just been sampled,
+    so the three screens shared no common ground and the meters and
+    labels sat on an unpredictable background. The window now keeps the
+    shared theme and the collapsed colour is shown in the swatch.
     """
-
-    # ── Window 3 — previews under the selector, snaps on collapse ──────
-    w3._canvas_labels = [c for c in w3.findChildren(type(w3.result_lbl))
-                         if c is not w3.swatch]
-
-    # Window 3 publishes its live preview colour to quantum_color as the
-    # selector moves, and sets it again on collapse, so following that one
-    # signal keeps the canvas current for every kind of movement — arrow
-    # keys, the Arduino pots, the Heisenberg animation and the collapse
-    # itself. No method wrapping is needed here.
-    def preview():
-        _paint_window(w3, w3.state.quantum_color)
-
-    w3.state.quantum_color_changed.connect(lambda c: _paint_window(w3, c))
-
-    # Exposed so main.py can repaint once the windows have been placed:
-    # full-screen placement wraps the window in a scaling view that does
-    # not exist yet, and a canvas painted only now would miss it.
-    w3._kiosk_repaint = preview
-
-    preview()
+    return
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -303,16 +241,16 @@ def apply_kiosk_mode(w1, w2, w3, frameless: bool = True):
 
 
 def repaint_canvas(*windows):
-    """Repaint the colour canvas on any of `windows` that has one.
+    """Repaint any window that paints its own background.
 
     Call after the windows are placed: full-screen placement re-parents
-    the content into a scaling view, and the canvas has to be applied to
-    that view as well as to the window.
+    the content into a scaling view, so a background painted before that
+    has to be reapplied to reach the new surface.
     """
     for win in windows:
-        hook = getattr(win, '_kiosk_repaint', None)
-        if hook is not None:
-            hook()
+        repaint = getattr(win, 'repaint_background', None)
+        if repaint is not None:
+            repaint()
 
 
 def _exit_kiosk(w1, w2, w3):

@@ -42,6 +42,8 @@ from arduino_bridge   import ArduinoBridge
 from scaling          import apply_uniform_scaling
 from kiosk            import apply_kiosk_mode, repaint_canvas
 
+import theme
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Exhibition presentation
@@ -109,19 +111,26 @@ def _install_font_substitutions():
 
 
 def _dark_palette() -> QPalette:
+    """The application palette, taken from theme.py.
+
+    This is what shows through wherever a widget sets no background of
+    its own, so it has to be the same scheme the windows paint with —
+    a neutral grey here would show up as grey seams between blue-black
+    surfaces.
+    """
     p = QPalette()
-    p.setColor(QPalette.ColorRole.Window,          QColor(42,  42,  42 ))
-    p.setColor(QPalette.ColorRole.WindowText,      QColor(220, 220, 220))
-    p.setColor(QPalette.ColorRole.Base,            QColor(28,  28,  28 ))
-    p.setColor(QPalette.ColorRole.AlternateBase,   QColor(45,  45,  45 ))
-    p.setColor(QPalette.ColorRole.Text,            QColor(220, 220, 220))
-    p.setColor(QPalette.ColorRole.BrightText,      QColor(255, 255, 255))
-    p.setColor(QPalette.ColorRole.Button,          QColor(55,  55,  55 ))
-    p.setColor(QPalette.ColorRole.ButtonText,      QColor(220, 220, 220))
-    p.setColor(QPalette.ColorRole.Highlight,       QColor(90,  70,  180))
-    p.setColor(QPalette.ColorRole.HighlightedText, QColor(255, 255, 255))
-    p.setColor(QPalette.ColorRole.ToolTipBase,     QColor(55,  55,  55 ))
-    p.setColor(QPalette.ColorRole.ToolTipText,     QColor(220, 220, 220))
+    p.setColor(QPalette.ColorRole.Window,          QColor(*theme.PALETTE_WINDOW))
+    p.setColor(QPalette.ColorRole.WindowText,      QColor(*theme.PALETTE_TEXT))
+    p.setColor(QPalette.ColorRole.Base,            QColor(*theme.PALETTE_BASE))
+    p.setColor(QPalette.ColorRole.AlternateBase,   QColor(*theme.PALETTE_ALT_BASE))
+    p.setColor(QPalette.ColorRole.Text,            QColor(*theme.PALETTE_TEXT))
+    p.setColor(QPalette.ColorRole.BrightText,      QColor(*theme.PALETTE_BRIGHT_TEXT))
+    p.setColor(QPalette.ColorRole.Button,          QColor(*theme.PALETTE_BUTTON))
+    p.setColor(QPalette.ColorRole.ButtonText,      QColor(*theme.PALETTE_TEXT))
+    p.setColor(QPalette.ColorRole.Highlight,       QColor(*theme.PALETTE_HIGHLIGHT))
+    p.setColor(QPalette.ColorRole.HighlightedText, QColor(*theme.PALETTE_BRIGHT_TEXT))
+    p.setColor(QPalette.ColorRole.ToolTipBase,     QColor(*theme.PALETTE_TOOLTIP))
+    p.setColor(QPalette.ColorRole.ToolTipText,     QColor(*theme.PALETTE_TEXT))
     return p
 
 

@@ -39,6 +39,8 @@ from PyQt6.QtGui import QFont, QImage, QPixmap, QPainter, QPen, QColor
 
 from image_utils import create_gradient_palette, quantum_collapse
 
+import theme
+
 # ── Palette canvas dimensions ─────────────────────────────────────────────────
 PAL_W = 520
 PAL_H = 290
@@ -187,7 +189,7 @@ class UncertaintyBar(QWidget):
         self.update()
 
     def _draw_meter(self, painter, y, label, frac, color, from_left, caption):
-        painter.setPen(QPen(QColor(200, 200, 200)))
+        painter.setPen(QPen(QColor(theme.FG_NORMAL)))
         painter.setFont(QFont('Arial', 10, QFont.Weight.Bold))
         painter.drawText(0, y, self._LABEL_W, self._BAR_H,
                          Qt.AlignmentFlag.AlignVCenter |
@@ -198,7 +200,7 @@ class UncertaintyBar(QWidget):
 
         # Track
         painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QColor(38, 38, 48))
+        painter.setBrush(QColor(theme.BG_DEEP))
         painter.drawRoundedRect(track_x, y, track_w, self._BAR_H, 4, 4)
 
         # Fill — grows from the left or the right so the two bars read as
@@ -209,7 +211,7 @@ class UncertaintyBar(QWidget):
             fill_x = track_x if from_left else track_x + track_w - fill_w
             painter.drawRoundedRect(fill_x, y, fill_w, self._BAR_H, 4, 4)
 
-        painter.setPen(QPen(QColor(150, 150, 160)))
+        painter.setPen(QPen(QColor(theme.FG_MUTED)))
         painter.setFont(QFont('Arial', 9))
         painter.drawText(track_x + track_w + 8, y, 100, self._BAR_H,
                          Qt.AlignmentFlag.AlignVCenter |
@@ -219,13 +221,19 @@ class UncertaintyBar(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
+        # Painted here rather than via a stylesheet: this widget draws
+        # itself, so a stylesheet background would never be rendered.
+        painter.fillRect(self.rect(), QColor(theme.BG_BAR))
+        painter.setPen(QPen(QColor(theme.BORDER)))
+        painter.drawLine(0, 0, self.width(), 0)
+
         self._draw_meter(painter, 6, 'SIZE', self._size_frac,
                          (90, 140, 230), True, f'{self._size_px} px')
         self._draw_meter(painter, 6 + self._BAR_H + 10, 'SPEED',
                          self._speed_frac, (230, 140, 90), False,
                          'fast' if self._speed_frac > 0.5 else 'slow')
 
-        painter.setPen(QPen(QColor(130, 130, 150)))
+        painter.setPen(QPen(QColor(theme.FG_MUTED)))
         painter.setFont(QFont('Arial', 9))
         painter.drawText(
             0, 6 + 2 * (self._BAR_H + 10) + 2, self.width(), 18,
@@ -278,6 +286,12 @@ class QuantumPaletteWindow(QMainWindow):
     def _build_ui(self):
         root = QWidget()
         self.setCentralWidget(root)
+        # The shared ground. The gradient palette below is this screen's
+        # canvas and paints its own pixels; everything around it matches
+        # the other two screens.
+        self.setStyleSheet(f'QMainWindow {{ background-color: {theme.BG_DEEP}; }}')
+        root.setStyleSheet(theme.page(theme.BG_DEEP))
+
         layout = QVBoxLayout(root)
         layout.setSpacing(7)
         layout.setContentsMargins(16, 12, 16, 12)

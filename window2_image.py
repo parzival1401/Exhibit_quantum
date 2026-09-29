@@ -42,6 +42,8 @@ from PyQt6.QtPrintSupport import QPrinter
 
 from image_utils import identify_regions, apply_region_colors
 
+import theme
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Constants
 # ─────────────────────────────────────────────────────────────────────────────
@@ -126,7 +128,7 @@ class QRDialog(QDialog):
         self.setWindowTitle('Scan to Download Your Artwork')
         self.setModal(True)
         self.setMinimumSize(440, 540)
-        self.setStyleSheet('background-color: #06061a;')
+        self.setStyleSheet(theme.page(theme.BG_DEEP))
 
         layout = QVBoxLayout(self)
         layout.setSpacing(16)
@@ -439,6 +441,9 @@ class ImageProcessorWindow(QMainWindow):
 
         self.setWindowTitle('Window 2 — Quantum Color Exhibit')
         self.setMinimumSize(900, 660)
+        # The shared ground, so nothing shows through in a different
+        # colour around the pages.
+        self.setStyleSheet(f'QMainWindow {{ background-color: {theme.BG_DEEP}; }}')
 
         self._build_ui()
         self._build_menu()
@@ -471,7 +476,7 @@ class ImageProcessorWindow(QMainWindow):
 
     def _make_welcome_page(self) -> QWidget:
         page = QWidget()
-        page.setStyleSheet('background-color: #06061a;')
+        page.setStyleSheet(theme.page(theme.BG_DEEP))
         layout = QVBoxLayout(page)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(22)
@@ -526,7 +531,7 @@ class ImageProcessorWindow(QMainWindow):
 
     def _make_gallery_page(self) -> QWidget:
         page = QWidget()
-        page.setStyleSheet('background-color: #0d0d22;')
+        page.setStyleSheet(theme.page(theme.BG_PAGE))
         outer = QVBoxLayout(page)
         outer.setContentsMargins(20, 14, 20, 14)
         outer.setSpacing(12)
@@ -603,7 +608,7 @@ class ImageProcessorWindow(QMainWindow):
 
     def _make_coloring_page(self) -> QWidget:
         page = QWidget()
-        page.setStyleSheet('background-color: #111118;')
+        page.setStyleSheet(theme.page(theme.BG_PANEL))
         main = QVBoxLayout(page)
         main.setSpacing(6)
         main.setContentsMargins(14, 8, 14, 8)
@@ -783,21 +788,7 @@ class ImageProcessorWindow(QMainWindow):
 
     def _build_menu(self):
         mb = self.menuBar()
-        mb.setStyleSheet("""
-            QMenuBar {
-                background-color : #1e1e1e;
-                color            : #aaaaaa;
-                font-size        : 11px;
-            }
-            QMenuBar::item:selected { background-color: #333333; }
-            QMenu {
-                background-color : #252525;
-                color            : #dddddd;
-                border           : 1px solid #444444;
-            }
-            QMenu::item:selected { background-color: #3a3a5a; }
-            QMenu::separator     { height: 1px; background: #444444; margin: 3px 0; }
-        """)
+        mb.setStyleSheet(theme.menu_bar())
 
         file_menu = mb.addMenu('Staff')
 

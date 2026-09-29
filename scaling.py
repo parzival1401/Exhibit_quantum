@@ -18,8 +18,10 @@ the proxy untouched).
 from PyQt6.QtWidgets import (
     QGraphicsScene, QGraphicsView, QGraphicsProxyWidget,
 )
-from PyQt6.QtGui import QPainter
+from PyQt6.QtGui import QPainter, QColor
 from PyQt6.QtCore import Qt
+
+import theme
 
 
 class _ScalingView(QGraphicsView):
@@ -60,11 +62,19 @@ def apply_uniform_scaling(window):
     scene.setSceneRect(0, 0, design_size.width(), design_size.height())
 
     # Let whatever is painted behind the scene show through the design.
-    # Kiosk mode paints the window/scene with the live colour, and an
-    # opaque content widget would sit on top of it as a grey slab.
+    # A window that paints its own background (Window 1's colour canvas)
+    # would otherwise be covered by an opaque content widget.
     content.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
     content.setAutoFillBackground(False)
 
     view = _ScalingView(scene)
+
+    # The view covers the window, so the window's own background cannot
+    # show through it. Start it on the shared ground; a window that paints
+    # its own canvas overwrites this from repaint_background().
+    ground = QColor(theme.BG_DEEP)
+    view.setBackgroundBrush(ground)
+    scene.setBackgroundBrush(ground)
+
     window.setCentralWidget(view)
     return view
