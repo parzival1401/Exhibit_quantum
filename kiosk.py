@@ -288,13 +288,15 @@ def apply_kiosk_mode(w1, w2, w3, frameless: bool = True):
 
     print('\n'
           '  ╔══════════════════════════════════════════════════════╗\n'
-          '  ║   KIOSK MODE — buttons hidden, commands active       ║\n'
+          '  ║   Exhibit Quantum — running                          ║\n'
           '  ╠══════════════════════════════════════════════════════╣\n'
+          '  ║  Driven by the Arduino panel. Keyboard fallback:     ║\n'
+          '  ║                                                      ║\n'
           '  ║  R / G / B   toggle channel      P / Space  push     ║\n'
           '  ║  ↑↓←→ move   [ ] resize          A  auto-move        ║\n'
           '  ║  Enter collapse                  Q  collapse+push    ║\n'
           '  ║  Ctrl+S save   Ctrl+P print      Ctrl+G gallery      ║\n'
-          '  ║  Esc  exit kiosk mode (show buttons again)           ║\n'
+          '  ║  Esc  reveal the hidden controls                     ║\n'
           '  ╚══════════════════════════════════════════════════════╝\n')
 
     return shortcuts
@@ -327,4 +329,4 @@ def _exit_kiosk(w1, w2, w3):
     for name in _W3_CHROME:
         _show(getattr(w3, name, None))
 
-    print('  [kiosk] Exited kiosk mode — controls visible again.\n')
+    print('  [kiosk] Hidden controls revealed.\n')

@@ -84,13 +84,21 @@ class ArduinoBridge(QObject):
     push_rgb_pressed  = pyqtSignal()   # SW_PUSH → push classical colour to left image
     collapse_pressed  = pyqtSignal()   # SW_COL  → collapse quantum + push to right image
 
-    def __init__(self, port: str = None, baud: int = 115200):
+    def __init__(self, port: str = None, baud: int = 115200,
+                 debug: bool = False):
         super().__init__()
         self._port     = port or _auto_detect_port()
         self._baud     = baud
         self._running  = False
         self._thread   = None
         self._ser      = None
+
+        # Print every reading that arrives. This is the one debugging aid
+        # the exhibit keeps: when the panel misbehaves it answers the only
+        # question that matters first — is the board sending anything, and
+        # are the values what the switches and knobs are actually doing?
+        self._debug     = debug
+        self._debug_n   = 0
 
         # Remember last switch state to avoid redundant signals
         self._last_sw   = (False, False, False)
@@ -141,6 +149,31 @@ class ArduinoBridge(QObject):
             except Exception:
                 pass   # silently ignore malformed lines / read errors
 
+    # Print one steady-state line in this many readings (~20 arrive per
+    # second, so this is about one line a second when nothing is moving).
+    _DEBUG_EVERY = 20
+
+    def _log(self, r, g, b, push, col, ax, ay, az, switches_moved, pressed):
+        """Print an incoming reading.
+
+        Switch flips and button presses print immediately — they are the
+        events being diagnosed. The pots stream continuously, so those
+        print on a throttle to keep the terminal readable.
+        """
+        self._debug_n += 1
+        if not (switches_moved or pressed or
+                self._debug_n % self._DEBUG_EVERY == 0):
+            return
+
+        def mark(on):
+            return '#' if on else '.'
+
+        tag = 'EVENT' if (switches_moved or pressed) else '     '
+        print(f'[Arduino] {tag} '
+              f'R{mark(r)} G{mark(g)} B{mark(b)}  '
+              f'push{mark(push)} collapse{mark(col)}  '
+              f'X={ax:>4} Y={ay:>4} size={az:>4}')
+
     def _parse_line(self, line: str):
         """
         Parse 'S:1,0,1,0,0,A:512,256,80' and emit the appropriate signals.
@@ -165,7 +198,8 @@ class ArduinoBridge(QObject):
 
             # RGB toggles — emit only on state change
             r, g, b = bool(sr), bool(sg), bool(sb)
-            if (r, g, b) != self._last_sw:
+            switches_moved = (r, g, b) != self._last_sw
+            if switches_moved:
                 self._last_sw = (r, g, b)
                 self.switches_changed.emit(r, g, b)
 
@@ -176,6 +210,13 @@ class ArduinoBridge(QObject):
                 self.push_rgb_pressed.emit()
             if col and not self._last_col:
                 self.collapse_pressed.emit()
+
+            if self._debug:
+                self._log(r, g, b, push, col, ax, ay, az,
+                          switches_moved,
+                          pressed=(push and not self._last_push) or
+                                  (col and not self._last_col))
+
             self._last_push = push
             self._last_col  = col
 

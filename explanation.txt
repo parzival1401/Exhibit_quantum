@@ -215,23 +215,45 @@ The app auto-detects if an Arduino is connected. If none is found, it still
 works normally using only the on-screen buttons and keyboard.
 
 
-EXHIBITION MODE
----------------
-The app runs in one of two modes, set by KIOSK_MODE at the top of main.py.
+EXHIBITION PRESENTATION
+-----------------------
+The app always runs as the exhibit. The push buttons, the technical readouts
+and the window title bars are hidden, so the screens look like an
+installation rather than a piece of software. Nothing is removed: every
+action still works, driven by the Arduino panel and by the keyboard commands
+listed below.
 
-  KIOSK_MODE = False (development)
-    Every action is a labelled button you can click with the mouse. Use this
-    while testing or demonstrating the app on a laptop.
+The center screen (Window 2) keeps everything — it is the main menu, and it
+is where visitors choose a drawing and then save, print or scan their
+artwork. Only the two side screens are stripped down.
 
-  KIOSK_MODE = True (exhibition — the default)
-    The push buttons, the technical readouts and the window title bars are
-    hidden, so the screens look like an installation rather than a piece of
-    software. Nothing is removed: every action still works, driven by the
-    Arduino panel and by the keyboard commands listed below.
+Pressing Esc reveals the hidden controls on a running machine, so staff are
+never locked out if the panel fails.
 
-    The center screen (Window 2) keeps everything — it is the main menu, and
-    it is where visitors choose a drawing and then save, print or scan their
-    artwork. Only the two side screens are stripped down.
+
+TROUBLESHOOTING THE ARDUINO
+---------------------------
+If a switch or knob is not doing what it should, open main.py and set
+
+    ARDUINO_DEBUG = True
+
+then run the app and watch the terminal. Every reading arriving from the
+board is printed:
+
+  - Switch flips and button presses appear the moment they happen, marked
+    EVENT, so you can see whether a press is reaching the computer at all.
+  - The knobs print about once a second, so their numbers are visible
+    without flooding the screen.
+
+A line looks like this:
+
+    [Arduino] EVENT R# G. B.  push# collapse.  X= 512 Y= 256 size=  80
+
+A "#" means on and a "." means off, so the line above is red switched on
+with the push button held, and the three knobs reading 512, 256 and 80.
+
+If nothing prints at all, the board is not being found. The app says so at
+startup and keeps running on the keyboard alone.
 
 
 HOW COLORING WORKS

@@ -44,18 +44,23 @@ from kiosk            import apply_kiosk_mode, repaint_canvas
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Exhibition (final) presentation
+# Exhibition presentation
 # ─────────────────────────────────────────────────────────────────────────────
-# False → development: every control is a visible, clickable button.
-# True  → exhibition:  buttons and developer readouts are hidden and the
-#                      exhibit is driven by the Arduino panel, with the
-#                      keyboard commands in kiosk.py as a staff fallback.
-#                      Press Esc to bring the controls back.
-KIOSK_MODE = True
+# The app always runs as the exhibit: the buttons and developer readouts
+# are hidden and it is driven by the Arduino panel, with the keyboard
+# commands in kiosk.py as a staff fallback. Press Esc to bring the
+# controls back on a running machine.
 
-# Drop the window title bars in kiosk mode. Turn this off if the exhibit
-# machine's window manager needs the title bar to place windows.
+# Drop the window title bars. Turn this off if the exhibit machine's
+# window manager needs the title bar to place windows.
 KIOSK_FRAMELESS = True
+
+# Print the readings arriving from the Arduino panel. Turn this on when
+# a switch or knob is not doing what it should: it answers whether the
+# board is sending at all, and whether the values match the hardware.
+# Switch flips and button presses print as they happen; the knobs print
+# about once a second so the terminal stays readable.
+ARDUINO_DEBUG = False
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -264,7 +269,7 @@ def main():
     # ── Arduino physical controls ──────────────────────────────────────────
     # Auto-detects the Arduino USB port. If none is found, the app runs
     # normally in software-only mode (no error, just a console message).
-    bridge = ArduinoBridge()
+    bridge = ArduinoBridge(debug=ARDUINO_DEBUG)
     bridge.switches_changed.connect(w1.apply_switches)          # 3 RGB switches → W1
     bridge.pots_changed.connect(w3.apply_pots)                  # 3 pots → W3 selector
     bridge.push_rgb_pressed.connect(state.request_push_rgb)     # SW_PUSH → left image
@@ -277,35 +282,20 @@ def main():
     # The shortcuts are parked on `app` because Qt destroys shortcut
     # objects that get garbage collected, which would silently kill every
     # keyboard command.
-    if KIOSK_MODE:
-        app._kiosk_shortcuts = apply_kiosk_mode(
-            w1, w2, w3, frameless=KIOSK_FRAMELESS
-        )
+    app._kiosk_shortcuts = apply_kiosk_mode(
+        w1, w2, w3, frameless=KIOSK_FRAMELESS
+    )
 
     # ── Position windows: fullscreen per monitor (3+ screens) or tiled ─────
     _place_windows(app, w1, w2, w3)
 
-    if KIOSK_MODE:
-        # Placement may have wrapped the side windows in a scaling view,
-        # which the canvas painted before placement would not have reached.
-        repaint_canvas(w1, w3)
+    # Placement may have wrapped the side windows in a scaling view, which
+    # the canvas painted before placement would not have reached.
+    repaint_canvas(w1, w3)
 
     # Give Window 3 keyboard focus so arrow-keys work immediately
     w3.setFocus()
     w3.raise_()
-
-    if not KIOSK_MODE:
-        # In kiosk mode the command list printed by apply_kiosk_mode()
-        # already says how to drive the exhibit, and these button-based
-        # instructions would contradict it.
-        print('\n'
-              '  ╔══════════════════════════════════════════════════════╗\n'
-              '  ║   Quantum Color PoC  — All three windows are open   ║\n'
-              '  ╠══════════════════════════════════════════════════════╣\n'
-              '  ║  Window 1  Toggle R / G / B to set classical colour  ║\n'
-              '  ║  Window 2  Live dual-view image fill                 ║\n'
-              '  ║  Window 3  ↑↓←→ move • Slider resize • Enter=Collapse║\n'
-              '  ╚══════════════════════════════════════════════════════╝\n')
 
     sys.exit(app.exec())
     
