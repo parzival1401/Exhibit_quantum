@@ -236,8 +236,8 @@ The app runs in one of two modes, set by KIOSK_MODE at the top of main.py.
 WHAT EACH SCREEN LOOKS LIKE
 ---------------------------
   Window 1 — the classical screen
-    The mixed color fills the whole screen, with its name and RGB numbers
-    in the middle. Along the bottom sit three round lamps marked R, G and B.
+    Nothing but the color: the mix fills the whole screen with no text
+    written on it. Along the bottom sit three round lamps marked R, G and B.
     A lamp is dim and grey when its channel is off, and lights up in its own
     color with a white ring when the channel is on — so it is obvious at a
     glance which channels are making the color on screen.

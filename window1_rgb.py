@@ -75,9 +75,9 @@ class RGBControllerWindow(QMainWindow):
 
     def _build_ui(self):
         """
-        The colour is the screen. A title sits at the top, the mixed
-        colour fills everything below it, and the three channel lamps sit
-        in a bar centred along the bottom.
+        The colour is the whole screen: no title, no read-out, nothing
+        written on it. The mixed colour fills the window and the three
+        channel lamps sit in a bar centred along the bottom.
 
         The lamps are the toggle buttons themselves rather than separate
         indicators: one widget per channel means the lit state and the
@@ -90,19 +90,10 @@ class RGBControllerWindow(QMainWindow):
         layout.setSpacing(0)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # ── Title ──────────────────────────────────────────────────────
-        title = QLabel('Classical')
-        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setFont(QFont('Arial', 15, QFont.Weight.Bold))
-        title.setContentsMargins(0, 20, 0, 0)
-        layout.addWidget(title)
-
-        # ── Colour preview — takes every spare pixel ───────────────────
-        # Transparent: the window itself is painted with the colour, so
-        # the preview only carries the read-out text over it.
+        # ── The colour field — takes every spare pixel ─────────────────
+        # Transparent and textless: the window itself is painted with the
+        # colour, and this just claims the space above the lamp bar.
         self.preview = QLabel()
-        self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview.setFont(QFont('Courier', 26, QFont.Weight.Bold))
         self.preview.setSizePolicy(QSizePolicy.Policy.Expanding,
                                    QSizePolicy.Policy.Expanding)
         layout.addWidget(self.preview, stretch=1)
@@ -212,20 +203,13 @@ class RGBControllerWindow(QMainWindow):
         g = 255 if self._channels.get('G') else 0
         b = 255 if self._channels.get('B') else 0
 
-        # Perceptual luminance → decide text colour
-        lum = 0.299 * r + 0.587 * g + 0.114 * b
-        fg  = '#000000' if lum > 140 else '#ffffff'
-
         # The colour goes on the window, not on the preview, so it runs
-        # edge to edge behind the title and the lamp bar. The preview
-        # stays transparent and carries only the read-out.
+        # edge to edge behind the lamp bar. The preview stays transparent
+        # and empty — the screen shows the colour and nothing else.
         self.setStyleSheet(
             f'QMainWindow {{ background-color: rgb({r},{g},{b}); }}'
         )
-        self.preview.setStyleSheet(f'color: {fg}; background: transparent;')
 
-        name = self._colour_name(r, g, b)
-        self.preview.setText(f'{name}\n({r}, {g}, {b})')
-
+        # Kept up to date for the hidden labels other code still reads.
         self.rgb_label.setText(f'R={r:>3}   G={g:>3}   B={b:>3}')
-        self.status.setText(name)
+        self.status.setText(self._colour_name(r, g, b))
