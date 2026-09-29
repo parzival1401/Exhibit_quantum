@@ -58,10 +58,16 @@ from PyQt6.QtCore import Qt
 # hiding and the Esc restore can never drift apart. The gradient palette,
 # the colour previews and the artwork itself are absent from these lists
 # on purpose — those are the exhibit.
-_W1_CHROME = ('btn_r', 'btn_g', 'btn_b', 'push_btn', 'rgb_label', 'status')
+# Window 1 keeps its three channel lamps: they are the exhibit's read-out
+# of which channels are on, and double as the click target in dev mode.
+_W1_CHROME = ('push_btn', 'rgb_label', 'status')
 
-_W2_CHROME = ('save_btn', 'qr_btn', 'print_btn', 'choose_btn', 'back_btn')
+# Window 2 keeps the menu and the saving controls — that screen is the
+# main menu, and visitors save, print and fetch their QR code from it.
+_W2_CHROME = ()
 
+# Window 3 keeps the palette and the uncertainty meters; the meters
+# replace the slider and the formula read-out they used to sit beside.
 _W3_CHROME = ('anim_btn', 'collapse_btn', 'push_btn', 'pots_btn',
               'slider', 'size_lbl', 'heis_lbl', 'stats_lbl')
 
@@ -89,16 +95,14 @@ def _hide_window3(w3):
 
 
 def _hide_window2(w2):
-    """Hide W2's staff buttons and the Staff menu bar."""
+    """Window 2 is the main menu, so nothing on it is hidden.
+
+    The gallery, the Save / Print / QR controls and the Staff menu all
+    stay: this is the screen visitors navigate and save their artwork
+    from, and staff reach the file actions through it.
+    """
     for name in _W2_CHROME:
         _hide(getattr(w2, name, None))
-
-    mb = w2.menuBar()
-    if mb is not None:
-        # setVisible(False), not hide(): on macOS the menu bar is the
-        # native global bar, and a plain hide() cannot be undone by
-        # show() when kiosk mode is exited.
-        mb.setVisible(False)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -216,19 +220,13 @@ def _paint_window(win, color):
 
 
 def _install_canvas(w1, w3):
-    """Make both side windows paint themselves with their live colour."""
+    """Give Window 3 a colour canvas behind its palette.
 
-    # ── Window 1 — follows the RGB switches ────────────────────────────
-    # The title is the only text left on this screen once the controls
-    # are hidden, so it is the only label that needs recolouring.
-    w1._canvas_labels = [c for c in w1.findChildren(type(w1.rgb_label))
-                         if c is not w1.preview]
-
-    def paint_w1(color):
-        _paint_window(w1, color)
-
-    w1.state.rgb_color_changed.connect(paint_w1)
-    paint_w1(w1.state.rgb_color)
+    Window 1 is not touched here: it paints its own background from
+    _refresh_preview() in both modes, so the colour fills that screen
+    whether or not kiosk mode is on, and a second painter would only be
+    a way for the two to disagree.
+    """
 
     # ── Window 3 — previews under the selector, snaps on collapse ──────
     w3._canvas_labels = [c for c in w3.findChildren(type(w3.result_lbl))
@@ -287,9 +285,8 @@ def _install_canvas(w1, w3):
     w3.state.quantum_color_changed.connect(lambda c: _paint_window(w3, c))
 
     # Exposed so main.py can repaint once the windows have been placed:
-    # full-screen placement wraps them in a scaling view that does not
-    # exist yet, and a canvas painted only now would miss it.
-    w1._kiosk_repaint = lambda: paint_w1(w1.state.rgb_color)
+    # full-screen placement wraps the window in a scaling view that does
+    # not exist yet, and a canvas painted only now would miss it.
     w3._kiosk_repaint = preview
 
     preview()
@@ -371,9 +368,5 @@ def _exit_kiosk(w1, w2, w3):
         _show(getattr(w2, name, None))
     for name in _W3_CHROME:
         _show(getattr(w3, name, None))
-
-    mb = w2.menuBar()
-    if mb is not None:
-        mb.setVisible(True)
 
     print('  [kiosk] Exited kiosk mode — controls visible again.\n')

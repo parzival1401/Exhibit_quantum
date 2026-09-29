@@ -32,9 +32,9 @@ import numpy as np
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QSlider, QFrame,
+    QLabel, QPushButton, QSlider, QSizePolicy,
 )
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import Qt, QTimer, QRectF
 from PyQt6.QtGui import QFont, QImage, QPixmap, QPainter, QPen, QColor
 
 from image_utils import create_gradient_palette, quantum_collapse
@@ -42,6 +42,10 @@ from image_utils import create_gradient_palette, quantum_collapse
 # ── Palette canvas dimensions ─────────────────────────────────────────────────
 PAL_W = 520
 PAL_H = 290
+
+# ── Selector size limits (shared by the slider, the pots and the meters) ─────
+SIZE_MIN = 10
+SIZE_MAX = 150
 
 # ── Heisenberg motion constants ───────────────────────────────────────────────
 HBAR        = 700.0    # ℏ analogue  (Δx · Δp product target)
@@ -71,7 +75,13 @@ class GradientPaletteWidget(QWidget):
         self.sq_cy   = PAL_H // 2
         self.sq_size = 50
 
-        self.setFixedSize(PAL_W, PAL_H)
+        # The widget grows with the window, but the selector coordinates
+        # stay in gradient space (PAL_W × PAL_H) and are scaled only when
+        # painting. Sampling therefore keeps indexing the gradient array
+        # directly, and no motion or collision maths has to change.
+        self.setMinimumSize(PAL_W // 2, PAL_H // 2)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding,
+                           QSizePolicy.Policy.Expanding)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
 
     def _build_pixmap(self) -> QPixmap:
@@ -105,18 +115,113 @@ class GradientPaletteWidget(QWidget):
         y2 = min(PAL_H, self.sq_cy + half)
         return self._gradient[y1:y2, x1:x2]
 
+    def _scale(self) -> tuple:
+        """Gradient-space → widget-space scale factors."""
+        return self.width() / PAL_W, self.height() / PAL_H
+
     def paintEvent(self, _event):
         painter = QPainter(self)
-        painter.drawPixmap(0, 0, self._pixmap)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
-        half = self.sq_size // 2
-        x, y = self.sq_cx - half, self.sq_cy - half
-        sz   = self.sq_size
+        # Stretch the gradient over the whole widget.
+        painter.drawPixmap(self.rect(), self._pixmap)
 
-        painter.setPen(QPen(QColor(255, 255, 255), 2, Qt.PenStyle.SolidLine))
-        painter.drawRect(x, y, sz, sz)
+        sx, sy = self._scale()
+        half   = self.sq_size / 2
+        x  = (self.sq_cx - half) * sx
+        y  = (self.sq_cy - half) * sy
+        w  = self.sq_size * sx
+        h  = self.sq_size * sy
+
+        rect = QRectF(x, y, w, h)
+        painter.setPen(QPen(QColor(255, 255, 255), 3, Qt.PenStyle.SolidLine))
+        painter.drawRect(rect)
         painter.setPen(QPen(QColor(0, 0, 0), 1, Qt.PenStyle.DashLine))
-        painter.drawRect(x + 2, y + 2, sz - 4, sz - 4)
+        painter.drawRect(rect.adjusted(3, 3, -3, -3))
+        painter.end()
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Heisenberg trade-off meters
+# ─────────────────────────────────────────────────────────────────────────────
+
+class UncertaintyBar(QWidget):
+    """
+    Two opposing meters showing the uncertainty trade-off.
+
+    SIZE fills from the left as the selector grows; SPEED fills from the
+    right as it shrinks. Because Δp = ℏ/Δx, one bar always empties as the
+    other fills — the point the exhibit is making, drawn rather than
+    written as a formula.
+    """
+
+    _BAR_H   = 18     # height of one meter bar
+    _LABEL_W = 70     # width reserved for the row label
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self._size_frac  = 0.0   # 0..1 — how large the selector is
+        self._speed_frac = 0.0   # 0..1 — how fast it can move
+        self._size_px    = 0
+        self.setMinimumHeight(86)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding,
+                           QSizePolicy.Policy.Fixed)
+
+    def set_values(self, size_px: int, size_min: int, size_max: int):
+        """Update both meters from the current selector size."""
+        span = max(1, size_max - size_min)
+        self._size_frac  = min(1.0, max(0.0, (size_px - size_min) / span))
+        # Speed is the complement: small selector → fast, large → slow.
+        self._speed_frac = 1.0 - self._size_frac
+        self._size_px    = size_px
+        self.update()
+
+    def _draw_meter(self, painter, y, label, frac, color, from_left, caption):
+        painter.setPen(QPen(QColor(200, 200, 200)))
+        painter.setFont(QFont('Arial', 10, QFont.Weight.Bold))
+        painter.drawText(0, y, self._LABEL_W, self._BAR_H,
+                         Qt.AlignmentFlag.AlignVCenter |
+                         Qt.AlignmentFlag.AlignLeft, label)
+
+        track_x = self._LABEL_W
+        track_w = max(10, self.width() - self._LABEL_W - 110)
+
+        # Track
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(QColor(38, 38, 48))
+        painter.drawRoundedRect(track_x, y, track_w, self._BAR_H, 4, 4)
+
+        # Fill — grows from the left or the right so the two bars read as
+        # mirror images of each other.
+        fill_w = int(track_w * frac)
+        if fill_w > 0:
+            painter.setBrush(QColor(*color))
+            fill_x = track_x if from_left else track_x + track_w - fill_w
+            painter.drawRoundedRect(fill_x, y, fill_w, self._BAR_H, 4, 4)
+
+        painter.setPen(QPen(QColor(150, 150, 160)))
+        painter.setFont(QFont('Arial', 9))
+        painter.drawText(track_x + track_w + 8, y, 100, self._BAR_H,
+                         Qt.AlignmentFlag.AlignVCenter |
+                         Qt.AlignmentFlag.AlignLeft, caption)
+
+    def paintEvent(self, _event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        self._draw_meter(painter, 6, 'SIZE', self._size_frac,
+                         (90, 140, 230), True, f'{self._size_px} px')
+        self._draw_meter(painter, 6 + self._BAR_H + 10, 'SPEED',
+                         self._speed_frac, (230, 140, 90), False,
+                         'fast' if self._speed_frac > 0.5 else 'slow')
+
+        painter.setPen(QPen(QColor(130, 130, 150)))
+        painter.setFont(QFont('Arial', 9))
+        painter.drawText(
+            0, 6 + 2 * (self._BAR_H + 10) + 2, self.width(), 18,
+            Qt.AlignmentFlag.AlignCenter,
+            'a precise position costs a precise speed  ·  Δx · Δp ≈ ℏ'
+        )
         painter.end()
 
 
@@ -182,13 +287,13 @@ class QuantumPaletteWindow(QMainWindow):
         info.setStyleSheet('color: #888888;')
         layout.addWidget(info)
 
-        # Gradient palette
+        # ── Gradient palette — the canvas, takes every spare pixel ─────
         self.palette = GradientPaletteWidget(self._gradient)
-        pal_row = QHBoxLayout()
-        pal_row.addStretch()
-        pal_row.addWidget(self.palette)
-        pal_row.addStretch()
-        layout.addLayout(pal_row)
+        layout.addWidget(self.palette, stretch=1)
+
+        # ── Heisenberg trade-off meters, along the bottom ──────────────
+        self.uncertainty_bar = UncertaintyBar()
+        layout.addWidget(self.uncertainty_bar)
 
         # ── Size / velocity slider ─────────────────────────────────────
         slider_row = QHBoxLayout()
@@ -197,7 +302,7 @@ class QuantumPaletteWindow(QMainWindow):
         slider_row.addWidget(QLabel('Small\n(fast)'))
 
         self.slider = QSlider(Qt.Orientation.Horizontal)
-        self.slider.setRange(10, 150)
+        self.slider.setRange(SIZE_MIN, SIZE_MAX)
         self.slider.setValue(50)
         self.slider.setTickPosition(QSlider.TickPosition.TicksBelow)
         self.slider.setTickInterval(20)
@@ -299,6 +404,9 @@ class QuantumPaletteWindow(QMainWindow):
         self.pots_btn.clicked.connect(self._toggle_pots)
         layout.addWidget(self.pots_btn)
 
+        # Fill the meters with the starting selector size.
+        self._refresh_uncertainty()
+
     # ── Arduino potentiometer enable / disable ────────────────────────────
 
     def _style_pots_btn(self, enabled: bool):
@@ -390,10 +498,13 @@ class QuantumPaletteWindow(QMainWindow):
         self._last_raw_s = raw_size
 
         # Size pot always applies (also controls Heisenberg speed when animating)
-        new_size = 10 + int(raw_size / 1023 * (150 - 10))
+        new_size = SIZE_MIN + int(raw_size / 1023 * (SIZE_MAX - SIZE_MIN))
         self.palette.sq_size = new_size
         self.palette.update()
+        # Drives _on_size_change, which refreshes the meters — but only if
+        # the value actually changed, so refresh directly too.
         self.slider.setValue(new_size)
+        self._refresh_uncertainty()
 
         # Kiosk mode installs a hook here so the colour canvas follows the
         # pots. This method writes sq_cx/sq_cy/sq_size directly rather than
@@ -513,14 +624,27 @@ class QuantumPaletteWindow(QMainWindow):
             self._fy = 0.0
 
         # Live uncertainty display
+        self._refresh_uncertainty()
+
+    # ── Uncertainty display ────────────────────────────────────────────────
+
+    def _refresh_uncertainty(self):
+        """Update every read-out that depends on the selector size.
+
+        One place, so the text label and the meters cannot disagree —
+        the size is changed from the slider, the pots and the animation.
+        """
         self.heis_lbl.setText(self._heisenberg_text())
+        self.uncertainty_bar.set_values(
+            self.palette.sq_size, SIZE_MIN, SIZE_MAX
+        )
 
     # ── Slider callback ────────────────────────────────────────────────────
 
     def _on_size_change(self, value: int):
         self.palette.set_selector_size(value)
         self.size_lbl.setText(f'{value} px')
-        self.heis_lbl.setText(self._heisenberg_text())
+        self._refresh_uncertainty()
 
     # ── Quantum Collapse ───────────────────────────────────────────────────
 

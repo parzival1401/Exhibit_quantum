@@ -11,7 +11,7 @@ immediately triggers a repaint in Window 2's left panel.
 
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QFrame,
+    QPushButton, QLabel, QSizePolicy,
 )
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -21,36 +21,38 @@ from PyQt6.QtGui import QFont
 # Helper: a single RGB channel toggle button
 # ─────────────────────────────────────────────────────────────────────────────
 
+# A channel lamp: dim and grey when the channel is off, saturated with a
+# glowing ring when it is on, so which channels are contributing to the
+# mix is readable at a glance from across the room.
 _BTN_STYLE = """
 QPushButton {{
     background-color : {off_bg};
-    color            : {off_fg};
-    border-radius    : 10px;
-    border           : 2px solid {border};
-    font-size        : 15px;
+    color            : #777777;
+    border-radius    : 40px;
+    border           : 3px solid {border};
+    font-size        : 30px;
     font-weight      : bold;
-    padding          : 6px 0px;
 }}
 QPushButton:checked {{
     background-color : {on_bg};
-    color            : white;
-    border           : 3px solid white;
+    color            : #ffffff;
+    border           : 5px solid #ffffff;
 }}
 QPushButton:hover {{
     border-color     : #cccccc;
 }}
 """
 
+_LAMP_SIZE = 80     # diameter of a channel lamp, in pixels
+
 
 def _channel_button(label: str, off_bg: str, on_bg: str, border: str) -> QPushButton:
     btn = QPushButton(label)
     btn.setCheckable(True)
-    btn.setMinimumHeight(70)
-    btn.setFont(QFont('Arial', 13, QFont.Weight.Bold))
+    btn.setFixedSize(_LAMP_SIZE, _LAMP_SIZE)
+    btn.setFont(QFont('Arial', 22, QFont.Weight.Bold))
     btn.setStyleSheet(
-        _BTN_STYLE.format(
-            off_bg=off_bg, on_bg=on_bg, border=border, off_fg='#cccccc'
-        )
+        _BTN_STYLE.format(off_bg=off_bg, on_bg=on_bg, border=border)
     )
     return btn
 
@@ -72,36 +74,40 @@ class RGBControllerWindow(QMainWindow):
     # ── UI construction ──────────────────────────────────────────────────
 
     def _build_ui(self):
+        """
+        The colour is the screen. A title sits at the top, the mixed
+        colour fills everything below it, and the three channel lamps sit
+        in a bar centred along the bottom.
+
+        The lamps are the toggle buttons themselves rather than separate
+        indicators: one widget per channel means the lit state and the
+        click target can never disagree, and the Arduino switches drive
+        the same widget through apply_switches().
+        """
         root = QWidget()
         self.setCentralWidget(root)
         layout = QVBoxLayout(root)
-        layout.setSpacing(12)
-        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(0)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        # Title
-        title = QLabel('Classical RGB Controller')
+        # ── Title ──────────────────────────────────────────────────────
+        title = QLabel('Classical')
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        title.setFont(QFont('Arial', 13, QFont.Weight.Bold))
+        title.setFont(QFont('Arial', 15, QFont.Weight.Bold))
+        title.setContentsMargins(0, 20, 0, 0)
         layout.addWidget(title)
 
-        # ── Color preview ──────────────────────────────────────────────
+        # ── Colour preview — takes every spare pixel ───────────────────
+        # Transparent: the window itself is painted with the colour, so
+        # the preview only carries the read-out text over it.
         self.preview = QLabel()
-        self.preview.setMinimumHeight(130)
-        self.preview.setFrameShape(QFrame.Shape.Box)
         self.preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.preview.setFont(QFont('Courier', 15, QFont.Weight.Bold))
-        layout.addWidget(self.preview)
+        self.preview.setFont(QFont('Courier', 26, QFont.Weight.Bold))
+        self.preview.setSizePolicy(QSizePolicy.Policy.Expanding,
+                                   QSizePolicy.Policy.Expanding)
+        layout.addWidget(self.preview, stretch=1)
 
-        # ── RGB numeric label ──────────────────────────────────────────
-        self.rgb_label = QLabel('R=0   G=0   B=0')
-        self.rgb_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.rgb_label.setFont(QFont('Courier', 11))
-        layout.addWidget(self.rgb_label)
-
-        # ── Three toggle buttons ───────────────────────────────────────
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
-
+        # ── Channel lamp bar, centred along the bottom ─────────────────
         self.btn_r = _channel_button('R', '#5a1010', '#ff3333', '#aa2222')
         self.btn_g = _channel_button('G', '#0f4a0f', '#33cc44', '#228822')
         self.btn_b = _channel_button('B', '#0f1f5a', '#4477ff', '#2244cc')
@@ -110,10 +116,27 @@ class RGBControllerWindow(QMainWindow):
         self.btn_g.clicked.connect(lambda: self._toggle('G'))
         self.btn_b.clicked.connect(lambda: self._toggle('B'))
 
-        btn_row.addWidget(self.btn_r)
-        btn_row.addWidget(self.btn_g)
-        btn_row.addWidget(self.btn_b)
-        layout.addLayout(btn_row)
+        lamp_row = QHBoxLayout()
+        lamp_row.setSpacing(18)
+        lamp_row.addStretch()
+        for btn in (self.btn_r, self.btn_g, self.btn_b):
+            lamp_row.addWidget(btn)
+        lamp_row.addStretch()
+
+        lamp_bar = QWidget()
+        lamp_bar.setLayout(lamp_row)
+        lamp_row.setContentsMargins(20, 14, 20, 20)
+        # Dark strip so the lamps stay readable whatever colour is mixed.
+        lamp_bar.setStyleSheet('background-color: rgba(0, 0, 0, 150);')
+        layout.addWidget(lamp_bar)
+
+        # Kept for the code that still reads them (kiosk mode hides these,
+        # and _refresh_preview writes to rgb_label), but no longer shown
+        # in their own rows — the numbers live inside the preview now.
+        self.rgb_label = QLabel()
+        self.status    = QLabel()
+        self.rgb_label.hide()
+        self.status.hide()
 
         # ── Push button ────────────────────────────────────────────────
         self.push_btn = QPushButton('▶  Push Color to Left Image')
@@ -131,15 +154,6 @@ class RGBControllerWindow(QMainWindow):
         """)
         self.push_btn.clicked.connect(lambda: self.state.request_push_rgb())
         layout.addWidget(self.push_btn)
-
-        # ── Status line ────────────────────────────────────────────────
-        self.status = QLabel('All channels  OFF')
-        self.status.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.status.setFont(QFont('Arial', 10))
-        self.status.setStyleSheet('color: #888888;')
-        layout.addWidget(self.status)
-
-        layout.addStretch()
 
         # Initial render
         self._refresh_preview()
@@ -177,6 +191,22 @@ class RGBControllerWindow(QMainWindow):
 
     # ── Preview repaint ───────────────────────────────────────────────────
 
+    # Switching channels fully on or off can only ever produce these eight
+    # colours, so they can simply be named.
+    _COLOUR_NAMES = {
+        (0,   0,   0  ): 'Black',
+        (255, 0,   0  ): 'Red',
+        (0,   255, 0  ): 'Green',
+        (0,   0,   255): 'Blue',
+        (255, 255, 0  ): 'Yellow',
+        (255, 0,   255): 'Magenta',
+        (0,   255, 255): 'Cyan',
+        (255, 255, 255): 'White',
+    }
+
+    def _colour_name(self, r: int, g: int, b: int) -> str:
+        return self._COLOUR_NAMES.get((r, g, b), '')
+
     def _refresh_preview(self):
         r = 255 if self._channels.get('R') else 0
         g = 255 if self._channels.get('G') else 0
@@ -186,10 +216,16 @@ class RGBControllerWindow(QMainWindow):
         lum = 0.299 * r + 0.587 * g + 0.114 * b
         fg  = '#000000' if lum > 140 else '#ffffff'
 
-        self.preview.setStyleSheet(
-            f'background-color: rgb({r},{g},{b});'
-            f'border: 2px solid #444;'
-            f'color: {fg};'
+        # The colour goes on the window, not on the preview, so it runs
+        # edge to edge behind the title and the lamp bar. The preview
+        # stays transparent and carries only the read-out.
+        self.setStyleSheet(
+            f'QMainWindow {{ background-color: rgb({r},{g},{b}); }}'
         )
-        self.preview.setText(f'({r}, {g}, {b})')
+        self.preview.setStyleSheet(f'color: {fg}; background: transparent;')
+
+        name = self._colour_name(r, g, b)
+        self.preview.setText(f'{name}\n({r}, {g}, {b})')
+
         self.rgb_label.setText(f'R={r:>3}   G={g:>3}   B={b:>3}')
+        self.status.setText(name)

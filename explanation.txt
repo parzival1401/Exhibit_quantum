@@ -33,11 +33,12 @@ monitors it falls back to placing the three windows side by side on one
 screen, which is the convenient arrangement for working on a laptop.
 
   Window 1 — Classical RGB Controller (left)
-    Three toggle buttons: Red, Green, Blue.
-    Each channel is either fully ON (255) or fully OFF (0).
+    Three channel lamps along the bottom: Red, Green, Blue.
+    Each channel is either fully ON (255) or fully OFF (0), and its lamp
+    lights up when it is on.
     You can make 8 possible colors: black, red, green, blue, yellow,
-    cyan, magenta, and white.
-    A "Push Color" button sends your chosen color to the left side of the drawing.
+    cyan, magenta, and white. The mixed color fills the screen.
+    Pushing the color sends it to the left side of the drawing.
 
   Window 2 — Image Processor (center)
     This is the main exhibit screen. It has three pages:
@@ -222,15 +223,42 @@ The app runs in one of two modes, set by KIOSK_MODE at the top of main.py.
     while testing or demonstrating the app on a laptop.
 
   KIOSK_MODE = True (exhibition — the default)
-    The buttons, the technical readouts, the Staff menu and the window title
-    bars are all hidden, so the screens look like an installation rather than
-    a piece of software. Nothing is removed: every action still works, driven
-    by the Arduino panel and by the keyboard commands listed below.
+    The push buttons, the technical readouts and the window title bars are
+    hidden, so the screens look like an installation rather than a piece of
+    software. Nothing is removed: every action still works, driven by the
+    Arduino panel and by the keyboard commands listed below.
 
-    In this mode the two side screens also become the color itself — the
-    whole Window 1 screen shows the current classical color, and the whole
-    Window 3 screen shows the quantum color, so both are readable from
-    across the room instead of from a small swatch.
+    The center screen (Window 2) keeps everything — it is the main menu, and
+    it is where visitors choose a drawing and then save, print or scan their
+    artwork. Only the two side screens are stripped down.
+
+
+WHAT EACH SCREEN LOOKS LIKE
+---------------------------
+  Window 1 — the classical screen
+    The mixed color fills the whole screen, with its name and RGB numbers
+    in the middle. Along the bottom sit three round lamps marked R, G and B.
+    A lamp is dim and grey when its channel is off, and lights up in its own
+    color with a white ring when the channel is on — so it is obvious at a
+    glance which channels are making the color on screen.
+
+  Window 2 — the main menu
+    Unchanged: the welcome screen, the gallery of drawings, and the coloring
+    page, plus the Save, Print and QR code buttons.
+
+  Window 3 — the quantum screen
+    The rainbow gradient fills the whole screen as one large canvas, with the
+    selector square drawn on top of it. Along the bottom is a bar with two
+    meters:
+
+      SIZE   fills from the left as the selector gets bigger
+      SPEED  fills from the right as the selector gets smaller
+
+    The two always move in opposite directions. That is the point being
+    made: the more precisely you pin down a position (small selector), the
+    less certain its speed becomes, and vice versa. The bar is the
+    Heisenberg Uncertainty Principle drawn as a picture instead of written
+    as a formula.
 
 
 KEYBOARD COMMANDS
