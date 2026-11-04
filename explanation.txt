@@ -47,7 +47,8 @@ screen, which is the convenient arrangement for working on a laptop.
       - Coloring page: the dual-panel drawing view where coloring happens.
     Visitors click a region in the drawing to select it, and from then on
     that region follows the colors live — no button press needed.
-    When done, they can save, or scan a QR code to take the image home.
+    When done, they press FINISH: the drawing is saved and a QR code pops up
+    so they can take the image home on their phone.
 
   Window 3 — Quantum Palette (right)
     A 2D rainbow gradient (hue on the horizontal axis, brightness on vertical).
@@ -115,16 +116,19 @@ KEY FUNCTIONS IN PLAIN TERMS
 
 QR CODE FEATURE — HOW IT WORKS
 --------------------------------
-When a visitor clicks the "Get QR Code" button, the following happens:
+When a visitor presses the FINISH button, the following happens. The
+visitor only sees the QR code; steps 1 to 4 happen behind it.
 
   Step 1 — Save the artwork automatically
     The current state of the drawing (both the classical and quantum sides
-    combined side by side) is saved as a PNG image file into a temporary
-    folder on the computer. No dialog box appears — it happens instantly.
+    combined side by side) is saved as a PNG image file in the saved_images
+    folder of the project, named by the date and time it was saved, for
+    example artwork_2026-11-04_14-39-05.png. Every visitor's drawing is
+    kept there. No dialog box appears — it happens instantly.
 
   Step 2 — Start a mini web server on the computer
     The app launches a small web server directly inside itself using Python's
-    built-in HTTP tools. This server points to that temporary folder and
+    built-in HTTP tools. This server points to the saved_images folder and
     starts listening on a random available network port (for example, port
     52341). The server runs silently in the background.
 
@@ -135,8 +139,10 @@ When a visitor clicks the "Get QR Code" button, the following happens:
 
   Step 4 — Build the download URL
     It combines the IP and port into a URL like:
-      http://192.168.1.45:52341/quantum_artwork.png
-    This URL points directly to the saved image file.
+      http://192.168.1.45:52341/artwork_2026-11-04_14-39-05.png
+    This URL points directly to the saved image file. The server only
+    hands out a file by its exact name, so nobody can browse the folder
+    to see other visitors' drawings.
 
   Step 5 — Generate and display the QR code
     The qrcode library encodes that URL into a QR code image, which appears
@@ -144,8 +150,8 @@ When a visitor clicks the "Get QR Code" button, the following happens:
     camera, the phone opens the URL in a browser, and the image downloads.
 
   The server stays running for the entire session, so the QR code remains
-  scannable as long as the app is open. Each new "Get QR Code" click updates
-  the saved image with the latest artwork.
+  scannable as long as the app is open. Each FINISH saves a new file, so
+  earlier visitors' QR codes keep working too.
 
 
 QR CODE OPTIONS — WAYS THIS COULD BE IMPLEMENTED
@@ -224,7 +230,7 @@ action still works, driven by the Arduino panel and by the keyboard commands
 listed below.
 
 The center screen (Window 2) keeps everything — it is the main menu, and it
-is where visitors choose a drawing and then save or scan their
+is where visitors choose a drawing and then press FINISH to take home their
 artwork. Only the two side screens are stripped down.
 
 Pressing Esc reveals the hidden controls on a running machine, so staff are
@@ -286,7 +292,7 @@ WHAT EACH SCREEN LOOKS LIKE
 
   Window 2 — the main menu
     Unchanged: the welcome screen, the gallery of drawings, and the coloring
-    page, plus the Save and QR code buttons.
+    page, plus the FINISH button.
 
   Window 3 — the quantum screen
     The rainbow gradient fills the whole screen as one large canvas, with the
@@ -328,7 +334,7 @@ of the three windows was clicked last.
 
   Staff commands
 
-    Ctrl + S       Save the artwork as an image file
+    Ctrl + S       Finish — save the artwork and show its QR code
     Ctrl + G       Go back to the gallery to choose another drawing
     Esc            Leave exhibition mode and bring all the buttons back
     X              Quit — closes the exhibit straight away, no prompt

@@ -14,7 +14,8 @@ Coloring behaviour
   • Window 1 → "Push Color to Left Image"  fills that region (classical RGB).
   • Window 3 → "Push Color to Right Image" fills that region (quantum).
   • Each region keeps its colour independently on each panel.
-  • "Save Image" exports left + right side-by-side as PNG.
+  • "Finish" saves left + right side-by-side as a PNG in saved_images/,
+    named by date and time, and shows a QR code to download it.
 
 Staff / admin
 ─────────────
@@ -27,7 +28,7 @@ import threading
 import socketserver
 import http.server
 import socket as _socket
-import tempfile
+from datetime import datetime
 import numpy as np
 from PIL import Image
 
@@ -50,8 +51,10 @@ import theme
 PROJECT_DIR     = os.path.dirname(os.path.abspath(__file__))
 IMAGES_DIR      = os.path.join(PROJECT_DIR, 'images')
 COLORED_DIR     = os.path.join(PROJECT_DIR, 'colored')
+SAVED_DIR       = os.path.join(PROJECT_DIR, 'saved_images')   # finished artwork
 os.makedirs(IMAGES_DIR,  exist_ok=True)
 os.makedirs(COLORED_DIR, exist_ok=True)
+os.makedirs(SAVED_DIR,   exist_ok=True)
 
 _SUPPORTED_EXTS = ('.png', '.jpg', '.jpeg', '.bmp', '.svg')
 _IMAGE_FILTER   = 'Images (*.png *.jpg *.jpeg *.bmp *.svg);;All files (*)'
@@ -102,6 +105,11 @@ def _start_file_server(directory: str):
             super().__init__(*a, directory=directory, **kw)
         def log_message(self, *a):
             pass   # suppress console noise
+        def list_directory(self, path):
+            # The folder holds every visitor's artwork. A QR code names one
+            # file; nobody on the network should be able to browse the rest.
+            self.send_error(404)
+            return None
 
     class _Server(socketserver.TCPServer):
         # SO_REUSEADDR means something different on Windows: it lets an
@@ -433,10 +441,9 @@ class ImageProcessorWindow(QMainWindow):
         self.left_region_colors  = {}
         self.right_region_colors = {}
 
-        # QR code server state
+        # QR code server state — serves SAVED_DIR, started on first Finish
         self._qr_server  = None
         self._qr_port    = None
-        self._qr_tmp_dir = tempfile.mkdtemp(prefix='quantum_exhibit_')
 
         self.setWindowTitle('Window 2 — Quantum Color Exhibit')
         self.setMinimumSize(900, 660)
@@ -705,49 +712,29 @@ class ImageProcessorWindow(QMainWindow):
         split.addWidget(self.right_panel)
         main.addLayout(split, stretch=1)
 
-        # Bottom bar: Save button
+        # Bottom bar: one Finish button. The visitor only sees the QR code;
+        # saving the file it points to happens behind it.
         bot = QHBoxLayout()
         bot.addStretch()
 
-        save_btn = QPushButton('💾  Save Image')
-        save_btn.setMinimumHeight(40)
-        save_btn.setFont(QFont('Arial', 11))
-        save_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        save_btn.setStyleSheet("""
+        finish_btn = QPushButton('✓  FINISH')
+        finish_btn.setMinimumHeight(48)
+        finish_btn.setFont(QFont('Arial', 13, QFont.Weight.Bold))
+        finish_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
+        finish_btn.setStyleSheet("""
             QPushButton {
                 background-color : #1e5a1e;
                 color            : #bbffbb;
-                border-radius    : 9px;
+                border-radius    : 10px;
                 border           : 2px solid #2e8a2e;
-                padding          : 0 22px;
+                padding          : 0 40px;
             }
             QPushButton:hover   { background-color : #2e7a2e; }
             QPushButton:pressed { background-color : #0e4a0e; }
         """)
-        save_btn.clicked.connect(self._save_image)
-        bot.addWidget(save_btn)
-        self.save_btn = save_btn
-
-        bot.addSpacing(14)
-
-        qr_btn = QPushButton('📱  Get QR Code')
-        qr_btn.setMinimumHeight(40)
-        qr_btn.setFont(QFont('Arial', 11))
-        qr_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        qr_btn.setStyleSheet("""
-            QPushButton {
-                background-color : #1a1a6a;
-                color            : #aaaaff;
-                border-radius    : 9px;
-                border           : 2px solid #3333cc;
-                padding          : 0 22px;
-            }
-            QPushButton:hover   { background-color : #2525aa; }
-            QPushButton:pressed { background-color : #0f0f55; }
-        """)
-        qr_btn.clicked.connect(self._show_qr_code)
-        bot.addWidget(qr_btn)
-        self.qr_btn = qr_btn
+        finish_btn.clicked.connect(self._finish)
+        bot.addWidget(finish_btn)
+        self.finish_btn = finish_btn
 
         bot.addStretch()
         main.addLayout(bot)
@@ -777,10 +764,10 @@ class ImageProcessorWindow(QMainWindow):
 
         file_menu.addSeparator()
 
-        act_save = QAction('Save Image', self)
-        act_save.setShortcut('Ctrl+S')
-        act_save.triggered.connect(self._save_image)
-        file_menu.addAction(act_save)
+        act_finish = QAction('Finish (save + QR code)', self)
+        act_finish.setShortcut('Ctrl+S')
+        act_finish.triggered.connect(self._finish)
+        file_menu.addAction(act_finish)
 
         act_home = QAction('Go to Welcome Screen', self)
         act_home.triggered.connect(
@@ -1028,17 +1015,20 @@ class ImageProcessorWindow(QMainWindow):
         self._render_left()
         self._render_right()
 
-    # ── QR Code ───────────────────────────────────────────────────────────
+    # ── Finish: save + QR code ────────────────────────────────────────────
 
-    def _show_qr_code(self):
+    def _finish(self):
+        """Save the artwork to SAVED_DIR and show the QR code for it.
+
+        The file is named by the moment it was saved,
+        artwork_YYYY-MM-DD_HH-MM-SS.png, so every visitor's drawing is kept
+        and the folder sorts by time. Hyphens rather than colons, which
+        Windows does not allow in file names.
+        """
         if self.template_array is None or self.region_labels is None:
             self.status.setText('No image loaded yet — please select one first')
             return
 
-        # Auto-save current result to temp folder (no dialog needed)
-        fname    = 'quantum_artwork.png'
-        tmp_path = os.path.join(self._qr_tmp_dir, fname)
-
         left_arr  = apply_region_colors(
             self.template_array, self.region_labels, self.left_region_colors
         )
@@ -1046,39 +1036,31 @@ class ImageProcessorWindow(QMainWindow):
             self.template_array, self.region_labels, self.right_region_colors
         )
         combined = np.hstack([left_arr, right_arr])
-        Image.fromarray(combined.astype(np.uint8), 'RGB').save(tmp_path)
 
-        # Start local HTTP server once (reused for all QR requests)
+        stamp = datetime.now().strftime('%Y-%m-%d_%H-%M-%S')
+        fname = f'artwork_{stamp}.png'
+        n = 2
+        while os.path.exists(os.path.join(SAVED_DIR, fname)):
+            fname = f'artwork_{stamp}_{n}.png'   # two finishes in one second
+            n += 1
+
+        try:
+            Image.fromarray(combined.astype(np.uint8), 'RGB').save(
+                os.path.join(SAVED_DIR, fname)
+            )
+        except OSError as exc:
+            self.status.setText(f'Could not save the artwork: {exc}')
+            return
+
+        # Start local HTTP server once (reused for every Finish)
         if self._qr_server is None:
-            self._qr_server, self._qr_port = _start_file_server(self._qr_tmp_dir)
+            self._qr_server, self._qr_port = _start_file_server(SAVED_DIR)
 
         ip  = _get_local_ip()
         url = f'http://{ip}:{self._qr_port}/{fname}'
 
-        self.status.setText(f'QR ready — visitors can scan to download  ({url})')
+        self.status.setText(f'Saved {fname} — scan to download  ({url})')
         QRDialog(url, self).exec()
-
-    # ── Save ─────────────────────────────────────────────────────────────
-
-    def _save_image(self):
-        if self.template_array is None:
-            self.status.setText('No image loaded yet — please select one first')
-            return
-        path, _ = QFileDialog.getSaveFileName(
-            self, 'Save Coloured Image', 'colored_result.png',
-            'PNG (*.png);;JPEG (*.jpg *.jpeg)'
-        )
-        if not path:
-            return
-        left_arr  = apply_region_colors(
-            self.template_array, self.region_labels, self.left_region_colors
-        )
-        right_arr = apply_region_colors(
-            self.template_array, self.region_labels, self.right_region_colors
-        )
-        combined = np.hstack([left_arr, right_arr])
-        Image.fromarray(combined.astype(np.uint8), 'RGB').save(path)
-        self.status.setText(f'Saved → {path}')
 
     # ── Resize ────────────────────────────────────────────────────────────
 

@@ -24,7 +24,7 @@ a mouse.
 | Screen | Role |
 | ------ | ---- |
 | **1 — Classical** | The mixed colour fills the display. Three lamps along the bottom light up to show which channels are on. |
-| **2 — Drawing** | The main menu: welcome, gallery of drawings, and the dual-panel colouring view. Save and QR code live here. |
+| **2 — Drawing** | The main menu: welcome, gallery of drawings, and the dual-panel colouring view. A FINISH button saves the artwork and shows a QR code to download it. |
 | **3 — Quantum** | The rainbow palette as a full-screen canvas with the selector box on it, over two meters showing the size/speed trade-off. |
 
 A region follows both colours live — flipping a switch or moving the selector
@@ -97,7 +97,7 @@ panel is unplugged:
 | `A` | Start or stop the automatic movement |
 | `Enter` | Collapse |
 | `Q` | Collapse and push |
-| `Ctrl+S` / `Ctrl+G` | Save / back to gallery |
+| `Ctrl+S` / `Ctrl+G` | Finish (save + QR code) / back to gallery |
 | `Esc` | Reveal the hidden controls |
 | `X` | Quit the exhibit (no confirmation) |
 
@@ -142,6 +142,7 @@ generate_test_image.py   makes a test drawing
 arduino/sketch/          the Arduino firmware
 images/                  line-art templates
 colored/                 finished references shown beside each template
+saved_images/            visitors' finished artwork, artwork_YYYY-MM-DD_HH-MM-SS.png
 ```
 
 `explanation.txt` is a plain-language walkthrough of the whole project for

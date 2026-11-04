@@ -179,7 +179,7 @@ def _install_commands(w1, w2, w3, shortcuts: list):
     shortcuts.append(_bind(w3, 'Q',      w3.collapse_and_push))
 
     # ── Staff ──────────────────────────────────────────────────────────
-    shortcuts.append(_bind(w2, 'Ctrl+S', w2._save_image))
+    shortcuts.append(_bind(w2, 'Ctrl+S', w2._finish))
     shortcuts.append(_bind(w2, 'Ctrl+G', w2._go_to_gallery))
 
     # Closes the exhibit. A bare letter, so it needs no modifier at the

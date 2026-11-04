@@ -32,7 +32,7 @@ lesson. The selector also models the Heisenberg uncertainty principle,
 | Window | File | Role |
 | ------ | ---- | ---- |
 | 1 — Classical | `window1_rgb.py` | Mixed RGB colour fills the screen; three lamps show which channels are on. |
-| 2 — Drawing | `window2_image.py` | Welcome → gallery → dual-panel colouring view. Save PNG, QR code download. |
+| 2 — Drawing | `window2_image.py` | Welcome → gallery → dual-panel colouring view. One FINISH button: saves the artwork and shows a QR code to download it. |
 | 3 — Quantum | `window3_quantum.py` | HSV gradient palette with the selector box, plus SIZE / SPEED meters that move in opposition. |
 
 A region is selected by clicking/touching it on either panel of window 2.
@@ -45,7 +45,7 @@ Its colour follows both sources live — no separate confirm step.
 | `main.py` | Entry point. Config flags at the top (`SCREEN_FOR_W1/W2/W3`, `IDENTIFY_SCREENS`, `KIOSK_FRAMELESS`, `ARDUINO_DEBUG`). Builds the windows, connects the Arduino signals, places windows: one per monitor with 3+ screens, tiled on one screen otherwise. |
 | `app_state.py` | `AppState(QObject)`: the single source of truth shared by the windows. Properties `rgb_color`, `quantum_color`, `selected_region`; signals `rgb_color_changed`, `quantum_color_changed`, `selected_region_changed`, `push_rgb_requested`, `push_quantum_requested`. |
 | `window1_rgb.py` | `RGBControllerWindow`. `apply_switches(r, g, b)` takes the hardware switch states. |
-| `window2_image.py` | `ImageProcessorWindow` (stacked welcome/gallery/colouring pages), `ImageCard`, `ImagePanel`, `QRDialog`. Loads PNG/JPG/BMP/SVG from `images/` (SVG via QtSvg); pairs each with a finished reference in `colored/` by base name. QR code is served by a small local HTTP server, so the phone must be on the same network. |
+| `window2_image.py` | `ImageProcessorWindow` (stacked welcome/gallery/colouring pages), `ImageCard`, `ImagePanel`, `QRDialog`. Loads PNG/JPG/BMP/SVG from `images/` (SVG via QtSvg); pairs each with a finished reference in `colored/` by base name. `_finish()` saves left + right side by side to `saved_images/artwork_YYYY-MM-DD_HH-MM-SS.png` (suffix `_2`… within one second) and shows `QRDialog`; a local HTTP server serves that folder (directory listing disabled), so the phone must be on the same network. Printing was removed. |
 | `window3_quantum.py` | `QuantumPaletteWindow`, `GradientPaletteWidget` (palette + selector), `UncertaintyBar` (meters). Heisenberg motion runs on a QTimer: each tick `momentum_spread = HBAR / size`, Gaussian velocity noise, damping, speed cap, wall reflection. `apply_pots(x, y, size)` takes the size slider (and X / Y knobs on old firmware); `apply_spinners(dx, dy)` moves the selector by `_SPIN_STEP_PX` per step; `collapse_and_push()` collapses and fills the right image. Tunables: `HBAR`, `NOISE_SCALE`, `SPEED_SCALE`, `DAMP`, `TICK_MS`, `SIZE_MIN/MAX`. |
 | `image_utils.py` | `create_gradient_palette` (X = hue, Y = brightness), `identify_regions` (connected components on light pixels; dark = outline = region 0), `apply_region_colors`, `apply_color_to_template`, `quantum_collapse` (per-channel normal distribution over the box's pixels → weighted random pick of one pixel). |
 | `arduino_bridge.py` | `ArduinoBridge(QObject)`: auto-detects the board by USB vendor ID (`_ARDUINO_VIDS`), reads serial in a daemon thread, emits `switches_changed`, `pots_changed`, `spinners_moved`, `push_rgb_pressed`, `collapse_pressed`. No board → software-only mode. |
@@ -56,7 +56,7 @@ Its colour follows both sources live — no separate confirm step.
 
 Keyboard fallback: `R` `G` `B` toggle channels, `P`/`Space` push classical,
 arrows move selector, `[` `]` resize, `A` auto-move, `Enter` collapse, `Q`
-collapse + push, `Ctrl+S/G` save / gallery.
+collapse + push, `Ctrl+S/G` finish / gallery.
 
 ## Hardware
 

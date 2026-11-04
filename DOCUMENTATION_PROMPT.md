@@ -73,7 +73,7 @@ The application consists of **three synchronized PyQt6 windows** arranged side-b
 │                 │                          │                  │
 │  • R/G/B toggle │  • Gallery / Welcome     │  • HSV gradient  │
 │  • Color swatch │  • Dual-panel coloring   │  • Selector box  │
-│  • Push button  │  • Save / Print / QR     │  • Collapse btn  │
+│  • Push button  │  • Finish (save + QR)    │  • Collapse btn  │
 └─────────────────┴──────────────────────────┴──────────────────┘
 ```
 
@@ -127,12 +127,11 @@ ArduinoBridge (daemon thread, serial)
 - Three-page stacked UI:
   - **Page 0 (Welcome):** Big START button
   - **Page 1 (Gallery):** Scrollable image grid (3-column), shows colored reference badge
-  - **Page 2 (Coloring):** Dual-panel coloring view + save/print/QR
+  - **Page 2 (Coloring):** Dual-panel coloring view + Finish (save + QR)
 - Region click → coordinate mapping → `identify_regions()` lookup
 - `left_region_colors` / `right_region_colors` dict per region ID
 - SVG rasterization via `QSvgRenderer`
-- QR code download: starts `SimpleHTTPRequestHandler` on random free port, generates QR with LAN IP
-- Print: `QPrinter` + `QPrintDialog`
+- Finish: saves the artwork to `saved_images/artwork_YYYY-MM-DD_HH-MM-SS.png`, then starts `SimpleHTTPRequestHandler` (directory listing disabled) on a random free port serving that folder and shows a QR code with the LAN IP
 - Supporting classes: `ImageCard`, `ImagePanel`, `ClickableLabel`, `QRDialog`
 
 ### `window3_quantum.py` (575 lines)
@@ -276,9 +275,7 @@ Coloring Page: Dual-panel view
     ├── Window 3: Move selector / resize / press Enter or [Collapse]
     │   └── Collapsed color appears → [Push Color] → fills RIGHT panel region
     │
-    ├── [Save Image] → export left+right side-by-side as PNG/JPEG
-    ├── [Get QR Code] → local HTTP server + QR dialog for mobile download
-    └── [Print] → send to default printer
+    └── [FINISH] → save left+right side-by-side to saved_images/ + QR dialog for mobile download
 ```
 
 ---
