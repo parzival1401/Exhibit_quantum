@@ -153,6 +153,9 @@ visitor only sees the QR code; steps 1 to 4 happen behind it.
   scannable as long as the app is open. Each FINISH saves a new file, so
   earlier visitors' QR codes keep working too.
 
+  When the visitor presses Done on the QR code, the main screen goes back
+  to the welcome page, ready for the next visitor to choose a drawing.
+
 
 QR CODE OPTIONS — WAYS THIS COULD BE IMPLEMENTED
 --------------------------------------------------

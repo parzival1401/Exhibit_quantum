@@ -15,7 +15,8 @@ Coloring behaviour
   • Window 3 → "Push Color to Right Image" fills that region (quantum).
   • Each region keeps its colour independently on each panel.
   • "Finish" saves left + right side-by-side as a PNG in saved_images/,
-    named by date and time, and shows a QR code to download it.
+    named by date and time, and shows a QR code to download it. Closing
+    the QR code returns to the welcome screen for the next visitor.
 
 Staff / admin
 ─────────────
@@ -1061,6 +1062,12 @@ class ImageProcessorWindow(QMainWindow):
 
         self.status.setText(f'Saved {fname} — scan to download  ({url})')
         QRDialog(url, self).exec()
+
+        # The visitor is done: hand the screen to the next one. Back to the
+        # start screen however the dialog was closed (Done, Esc or the close
+        # box) — the artwork is already saved, so nothing is lost. Picking a
+        # drawing from the gallery clears the previous colours.
+        self.stack.setCurrentIndex(self.PAGE_WELCOME)
 
     # ── Resize ────────────────────────────────────────────────────────────
 
