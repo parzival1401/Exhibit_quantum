@@ -2,14 +2,16 @@
 arduino_bridge.py — Physical Hardware Bridge (Arduino via USB Serial)
 
 Reads from an Arduino that sends one CSV line every ~50 ms:
-    S:1,0,1,A:512,256,80
+    S:1,0,1,0,0,A:512,256,80,E:3,-1
 
-    S: switch states  R, G, B  (0 or 1)
+    S: switch states  R, G, B, Push, Collapse  (0 or 1)
     A: potentiometer  X, Y, Size  (0–1023 each)
+    E: spinner steps since the previous line, X and Y  (optional)
 
-Emits two Qt signals that the windows connect to:
+Emits Qt signals that the windows connect to:
     switches_changed(r: bool, g: bool, b: bool)   → Window 1 toggle buttons
     pots_changed(x: int, y: int, size: int)        → Window 3 selector / slider
+    spinners_moved(dx: int, dy: int)               → Window 3 selector
 
 The bridge runs in a daemon thread so it never blocks the UI.
 If no Arduino is found the app starts normally with a console warning.
@@ -80,6 +82,11 @@ class ArduinoBridge(QObject):
     # Emitted whenever potentiometer values arrive — payload: raw 0-1023 each
     pots_changed = pyqtSignal(int, int, int)   # x, y, size
 
+    # Emitted on every line that carries an E: section — payload: steps
+    # since the previous line. Sent even when both are 0: its arrival is
+    # how Window 3 learns that spinners, not knobs, own X and Y.
+    spinners_moved = pyqtSignal(int, int)      # dx, dy
+
     # Emitted on the rising edge of each action button (momentary press)
     push_rgb_pressed  = pyqtSignal()   # SW_PUSH → push classical colour to left image
     collapse_pressed  = pyqtSignal()   # SW_COL  → collapse quantum + push to right image
@@ -105,6 +112,9 @@ class ArduinoBridge(QObject):
         # Rising-edge tracking for action buttons
         self._last_push = False
         self._last_col  = False
+        # Spinner steps since the last debug print (the per-line deltas
+        # are too small to read on a throttled log)
+        self._spin_total = [0, 0]
 
     # ── Public API ────────────────────────────────────────────────────────
 
@@ -172,15 +182,19 @@ class ArduinoBridge(QObject):
         print(f'[Arduino] {tag} '
               f'R{mark(r)} G{mark(g)} B{mark(b)}  '
               f'push{mark(push)} collapse{mark(col)}  '
-              f'X={ax:>4} Y={ay:>4} size={az:>4}')
+              f'X={ax:>4} Y={ay:>4} size={az:>4}  '
+              f'spin={self._spin_total[0]:+d},{self._spin_total[1]:+d}')
+        self._spin_total = [0, 0]
 
     def _parse_line(self, line: str):
         """
-        Parse 'S:1,0,1,0,0,A:512,256,80' and emit the appropriate signals.
-        Both sections must be present; missing or malformed lines are dropped.
+        Parse 'S:1,0,1,0,0,A:512,256,80,E:3,-1' and emit the appropriate
+        signals. S and A must be present; missing or malformed lines are
+        dropped. E is optional, so firmware without spinners still works.
 
         S: five switch values — R, G, B, Push, Collapse
         A: three pot values   — X, Y, Size  (0–1023 raw ADC)
+        E: two spinner deltas — X, Y  (steps since the previous line)
 
         push_rgb_pressed / collapse_pressed fire only on the rising edge
         (button goes from released → pressed) to avoid repeated triggers.
@@ -190,11 +204,15 @@ class ArduinoBridge(QObject):
                 return
 
             s_raw, a_raw = line.split('S:')[1].split(',A:')
+            a_raw, _, e_raw = a_raw.partition(',E:')
             vals = [int(v) for v in s_raw.split(',')]
             sr, sg, sb = vals[0], vals[1], vals[2]
             sp = vals[3] if len(vals) > 3 else 0   # SW_PUSH (backwards-compat)
             sc = vals[4] if len(vals) > 4 else 0   # SW_COL  (backwards-compat)
             ax, ay, az = (int(v) for v in a_raw.split(','))
+            ex, ey = (int(v) for v in e_raw.split(',')) if e_raw else (0, 0)
+            self._spin_total[0] += ex
+            self._spin_total[1] += ey
 
             # RGB toggles — emit only on state change
             r, g, b = bool(sr), bool(sg), bool(sb)
@@ -219,6 +237,11 @@ class ArduinoBridge(QObject):
 
             self._last_push = push
             self._last_col  = col
+
+            # Spinners before pots, so Window 3 knows the spinners own X / Y
+            # before it sees the first pot reading
+            if e_raw:
+                self.spinners_moved.emit(ex, ey)
 
             # Always emit pot values (windows apply their own deadband)
             self.pots_changed.emit(

@@ -280,7 +280,8 @@ def main():
     # normally in software-only mode (no error, just a console message).
     bridge = ArduinoBridge(debug=ARDUINO_DEBUG)
     bridge.switches_changed.connect(w1.apply_switches)          # 3 RGB switches → W1
-    bridge.pots_changed.connect(w3.apply_pots)                  # 3 pots → W3 selector
+    bridge.pots_changed.connect(w3.apply_pots)                  # size slider → W3 selector
+    bridge.spinners_moved.connect(w3.apply_spinners)            # 2 spinners → W3 X / Y
     bridge.push_rgb_pressed.connect(state.request_push_rgb)     # SW_PUSH → left image
     bridge.collapse_pressed.connect(w3.collapse_and_push)       # SW_COL  → collapse + right image
     bridge.start()

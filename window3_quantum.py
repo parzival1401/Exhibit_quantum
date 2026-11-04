@@ -267,6 +267,9 @@ class QuantumPaletteWindow(QMainWindow):
         self._last_raw_x        = -1      # -1 = no reading yet
         self._last_raw_y        = -1
         self._last_raw_s        = -1
+        # Set once the board reports spinners: from then on they own X / Y
+        # and the X / Y pot readings are ignored (those inputs are empty)
+        self._spinners_present  = False
 
         # ── Animation timer ────────────────────────────────────────────
         self._timer = QTimer(self)
@@ -498,6 +501,8 @@ class QuantumPaletteWindow(QMainWindow):
                                 the Heisenberg motion keeps running and the pot
                                 nudges its direction and speed.
         Size pot always updates the slider regardless of animation state.
+        With spinners fitted, X / Y come from apply_spinners() instead and
+        only the size reading is used here.
         """
         if not self._pots_enabled:
             return
@@ -510,7 +515,7 @@ class QuantumPaletteWindow(QMainWindow):
             self._pots_just_enabled = False
             return
 
-        pots_moving = (
+        pots_moving = not self._spinners_present and (
             abs(raw_x - self._last_raw_x) > self._POT_DEADBAND or
             abs(raw_y - self._last_raw_y) > self._POT_DEADBAND
         )
@@ -549,6 +554,36 @@ class QuantumPaletteWindow(QMainWindow):
         # (Window 2's live fill, the kiosk colour canvas) follows from the
         # quantum_color signal this raises.
         self._publish_preview()
+
+    # Selector pixels per spinner step (palette is 520 × 290). At the
+    # spinner's default 16 steps per turn this is 320 px a turn — about a
+    # turn and a half across the palette. Raising the spinner's resolution
+    # (DIP switches) needs this lowered in proportion.
+    _SPIN_STEP_PX   = 20
+    _SPIN_VEL_SCALE = 0.12  # pixel delta → velocity kick when animating
+
+    def apply_spinners(self, dx: int, dy: int):
+        """
+        Called by ArduinoBridge every ~50 ms with the spinner steps since
+        the last reading (spinner 1 → X, spinner 2 → Y).
+
+        Spinners are relative, so unlike the pots there is no baseline to
+        capture: each step simply moves the selector. Animation off, it
+        moves directly; animation on, the steps steer the Heisenberg drift
+        the same way the pots do.
+        """
+        self._spinners_present = True
+        if not self._pots_enabled or (dx == 0 and dy == 0):
+            return
+
+        px = dx * self._SPIN_STEP_PX
+        py = dy * self._SPIN_STEP_PX
+        if self._animating:
+            self._vx += px * self._SPIN_VEL_SCALE
+            self._vy += py * self._SPIN_VEL_SCALE
+        else:
+            # move_selector clamps to the palette and publishes the preview
+            self.palette.move_selector(px, py)
 
     # ── Heisenberg helpers ─────────────────────────────────────────────────
 

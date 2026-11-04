@@ -80,9 +80,10 @@ All of it sits at the top of `main.py`:
 
 ## Controls
 
-The exhibit is driven by the Arduino panel: three switches for the colour
-channels, three knobs for the selector's position and size, and two buttons
-for push and collapse.
+The exhibit is driven by the Arduino Mega panel: three switches for the
+colour channels, two arcade spinners that move the selector left/right and
+up/down, a slider for its size, and two buttons for push and collapse.
+Wiring and the spinner pinout are in `arduino/HARDWARE_NOTES.md`.
 
 Every action also has a keyboard command, so the exhibit still runs if the
 panel is unplugged:
