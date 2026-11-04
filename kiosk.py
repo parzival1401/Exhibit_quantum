@@ -32,7 +32,6 @@ Keyboard commands (work from any of the three windows)
 
   Staff
       Ctrl+S         save the artwork
-      Ctrl+P         print the artwork
       Ctrl+G         return to the gallery
       Esc            leave kiosk mode (show the buttons again)
       X              quit the exhibit
@@ -64,7 +63,7 @@ from PyQt6.QtCore import Qt
 _W1_CHROME = ('push_btn', 'rgb_label', 'status')
 
 # Window 2 keeps the menu and the saving controls — that screen is the
-# main menu, and visitors save, print and fetch their QR code from it.
+# main menu, and visitors save and fetch their QR code from it.
 _W2_CHROME = ()
 
 # Window 3 keeps the gradient and the uncertainty meters, and nothing
@@ -102,7 +101,7 @@ def _hide_window3(w3):
 def _hide_window2(w2):
     """Window 2 is the main menu, so nothing on it is hidden.
 
-    The gallery, the Save / Print / QR controls and the Staff menu all
+    The gallery, the Save / QR controls and the Staff menu all
     stay: this is the screen visitors navigate and save their artwork
     from, and staff reach the file actions through it.
     """
@@ -181,7 +180,6 @@ def _install_commands(w1, w2, w3, shortcuts: list):
 
     # ── Staff ──────────────────────────────────────────────────────────
     shortcuts.append(_bind(w2, 'Ctrl+S', w2._save_image))
-    shortcuts.append(_bind(w2, 'Ctrl+P', w2._print_image))
     shortcuts.append(_bind(w2, 'Ctrl+G', w2._go_to_gallery))
 
     # Closes the exhibit. A bare letter, so it needs no modifier at the
@@ -255,7 +253,7 @@ def apply_kiosk_mode(w1, w2, w3, frameless: bool = True):
           '  ║  R / G / B   toggle channel      P / Space  push     ║\n'
           '  ║  ↑↓←→ move   [ ] resize          A  auto-move        ║\n'
           '  ║  Enter collapse                  Q  collapse+push    ║\n'
-          '  ║  Ctrl+S save   Ctrl+P print      Ctrl+G gallery      ║\n'
+          '  ║  Ctrl+S save                     Ctrl+G gallery      ║\n'
           '  ║  Esc  reveal the hidden controls  X  quit            ║\n'
           '  ╚══════════════════════════════════════════════════════╝\n')
 

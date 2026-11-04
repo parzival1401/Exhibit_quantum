@@ -32,7 +32,7 @@ lesson. The selector also models the Heisenberg uncertainty principle,
 | Window | File | Role |
 | ------ | ---- | ---- |
 | 1 — Classical | `window1_rgb.py` | Mixed RGB colour fills the screen; three lamps show which channels are on. |
-| 2 — Drawing | `window2_image.py` | Welcome → gallery → dual-panel colouring view. Save PNG, print, QR code download. |
+| 2 — Drawing | `window2_image.py` | Welcome → gallery → dual-panel colouring view. Save PNG, QR code download. |
 | 3 — Quantum | `window3_quantum.py` | HSV gradient palette with the selector box, plus SIZE / SPEED meters that move in opposition. |
 
 A region is selected by clicking/touching it on either panel of window 2.
@@ -56,7 +56,7 @@ Its colour follows both sources live — no separate confirm step.
 
 Keyboard fallback: `R` `G` `B` toggle channels, `P`/`Space` push classical,
 arrows move selector, `[` `]` resize, `A` auto-move, `Enter` collapse, `Q`
-collapse + push, `Ctrl+S/P/G` save / print / gallery.
+collapse + push, `Ctrl+S/G` save / gallery.
 
 ## Hardware
 

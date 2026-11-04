@@ -37,8 +37,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QStackedWidget, QScrollArea, QDialog,
 )
 from PyQt6.QtCore import Qt, pyqtSignal, QSize
-from PyQt6.QtGui import QFont, QImage, QPixmap, QColor, QCursor, QAction, QPainter, QPageLayout
-from PyQt6.QtPrintSupport import QPrinter
+from PyQt6.QtGui import QFont, QImage, QPixmap, QColor, QCursor, QAction
 
 from image_utils import identify_regions, apply_region_colors
 
@@ -750,27 +749,6 @@ class ImageProcessorWindow(QMainWindow):
         bot.addWidget(qr_btn)
         self.qr_btn = qr_btn
 
-        bot.addSpacing(14)
-
-        print_btn = QPushButton('🖨  Print')
-        print_btn.setMinimumHeight(40)
-        print_btn.setFont(QFont('Arial', 11))
-        print_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
-        print_btn.setStyleSheet("""
-            QPushButton {
-                background-color : #4a2a0a;
-                color            : #ffcc88;
-                border-radius    : 9px;
-                border           : 2px solid #aa6622;
-                padding          : 0 22px;
-            }
-            QPushButton:hover   { background-color : #6a3a10; }
-            QPushButton:pressed { background-color : #2a1a04; }
-        """)
-        print_btn.clicked.connect(self._print_image)
-        bot.addWidget(print_btn)
-        self.print_btn = print_btn
-
         bot.addStretch()
         main.addLayout(bot)
 
@@ -1079,38 +1057,6 @@ class ImageProcessorWindow(QMainWindow):
 
         self.status.setText(f'QR ready — visitors can scan to download  ({url})')
         QRDialog(url, self).exec()
-
-    # ── Print ────────────────────────────────────────────────────────────
-
-    def _print_image(self):
-        if self.template_array is None or self.region_labels is None:
-            self.status.setText('No image loaded yet — please select one first')
-            return
-
-        # Build the combined left + right artwork
-        left_arr  = apply_region_colors(
-            self.template_array, self.region_labels, self.left_region_colors
-        )
-        right_arr = apply_region_colors(
-            self.template_array, self.region_labels, self.right_region_colors
-        )
-        combined = np.hstack([left_arr, right_arr])
-        pixmap   = _to_pixmap(combined.astype(np.uint8))
-
-        # Send directly to default printer — no dialog
-        printer = QPrinter(QPrinter.PrinterMode.HighResolution)
-        printer.setPageOrientation(QPageLayout.Orientation.Landscape)
-
-        painter = QPainter(printer)
-        rect    = painter.viewport()
-        size    = pixmap.size()
-        size.scale(rect.size(), Qt.AspectRatioMode.KeepAspectRatio)
-        painter.setViewport(rect.x(), rect.y(), size.width(), size.height())
-        painter.setWindow(pixmap.rect())
-        painter.drawPixmap(0, 0, pixmap)
-        painter.end()
-
-        self.status.setText(f'Printing on  {printer.printerName()}  …')
 
     # ── Save ─────────────────────────────────────────────────────────────
 

@@ -47,7 +47,7 @@ screen, which is the convenient arrangement for working on a laptop.
       - Coloring page: the dual-panel drawing view where coloring happens.
     Visitors click a region in the drawing to select it, and from then on
     that region follows the colors live — no button press needed.
-    When done, they can save, print, or scan a QR code to take the image home.
+    When done, they can save, or scan a QR code to take the image home.
 
   Window 3 — Quantum Palette (right)
     A 2D rainbow gradient (hue on the horizontal axis, brightness on vertical).
@@ -224,7 +224,7 @@ action still works, driven by the Arduino panel and by the keyboard commands
 listed below.
 
 The center screen (Window 2) keeps everything — it is the main menu, and it
-is where visitors choose a drawing and then save, print or scan their
+is where visitors choose a drawing and then save or scan their
 artwork. Only the two side screens are stripped down.
 
 Pressing Esc reveals the hidden controls on a running machine, so staff are
@@ -286,7 +286,7 @@ WHAT EACH SCREEN LOOKS LIKE
 
   Window 2 — the main menu
     Unchanged: the welcome screen, the gallery of drawings, and the coloring
-    page, plus the Save, Print and QR code buttons.
+    page, plus the Save and QR code buttons.
 
   Window 3 — the quantum screen
     The rainbow gradient fills the whole screen as one large canvas, with the
@@ -329,7 +329,6 @@ of the three windows was clicked last.
   Staff commands
 
     Ctrl + S       Save the artwork as an image file
-    Ctrl + P       Print the artwork on the default printer
     Ctrl + G       Go back to the gallery to choose another drawing
     Esc            Leave exhibition mode and bring all the buttons back
     X              Quit — closes the exhibit straight away, no prompt
