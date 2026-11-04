@@ -123,5 +123,9 @@ user → Security credentials → Delete).
 - The computer's clock must be right — AWS rejects requests and links
   signed by a clock far off. Automatic time sync is enough.
 - Cost is effectively zero: a drawing is ~30 KB.
-- A presigned link is ~350 characters, which still makes a comfortably
-  scannable QR code (version 14, ~4.7 px per module in the dialog).
+- A presigned link from the upload user's keys is ~380 characters, which
+  makes a comfortably scannable QR code (version 15, ~4.4 px per module in
+  the dialog). Use those keys, not an `aws login` / SSO profile: temporary
+  credentials add a session token that makes the link ~2,500 characters,
+  too long for a QR code — the exhibit then falls back to Wi-Fi and the
+  terminal says why.
