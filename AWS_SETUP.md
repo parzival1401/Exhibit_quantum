@@ -109,12 +109,109 @@ scan — if the image opens over mobile data, it is coming from S3. If the
 status says "upload failed, Wi-Fi link", the terminal prints the reason
 (`[Cloud] Upload failed …`).
 
-## Moving to the museum's account
+## The current setup: a test account (concept run)
 
-Repeat steps 1–4 in the museum's account, then change `AWS_BUCKET` (and
-`AWS_REGION` if theirs differs) in `main.py` and the keys in the credentials
-file. Afterwards, delete the test access key in the test account (IAM →
-user → Security credentials → Delete).
+Everything is presently wired to a **free test account** with no billing
+information, set up on 2026-11-04 and verified end to end — a phone with
+Wi-Fi off downloaded its drawing from S3.
+
+| Piece | Value in the test account |
+| ----- | ------------------------- |
+| Account ID | `332778515287` |
+| Region | `us-east-2` (Ohio) |
+| Bucket | `exhibit-quantum-artwork-332778515287` — private, 30-day delete rule `delete-artwork-after-30-days` on `artwork/` |
+| IAM policy | `ExhibitQuantumArtworkUpload` — `s3:PutObject` + `s3:GetObject` on `artwork/*` only |
+| IAM user | `exhibit-quantum-uploader` — no console access, that policy only |
+| Exhibit keys | `~/.aws/credentials` profile `[exhibit-quantum]` on the development Mac |
+| Admin sign-in | profile `exhibit-dev` (`aws login`), used only to create the above |
+| `main.py` | `AWS_BUCKET = 'exhibit-quantum-artwork-332778515287'`, `AWS_REGION = 'us-east-2'`, `AWS_PROFILE = 'exhibit-quantum'` |
+
+Verified on the test account: upload and presigned download (200,
+`image/png`), a 361-character link (QR version 14), and the upload key
+**refused** for listing the bucket, writing outside `artwork/`, deleting,
+and listing buckets.
+
+## Switching to the museum's (real) account
+
+The code does not change — only the account-specific values do. Work
+through this list in order.
+
+**In the museum's AWS account** (steps 1–3 above, or the CLI commands in
+the next section):
+
+- [ ] Note the account's **region**.
+- [ ] Create the bucket, e.g. `exhibit-quantum-artwork-<museum account ID>`
+      (bucket names are global, so the test bucket's name is taken).
+      Keep **Block all public access** on.
+- [ ] Add the 30-day delete rule on `artwork/` (or whatever retention the
+      museum wants — ask; it is their visitors' data).
+- [ ] Create the policy with the **new bucket name** in its `Resource`.
+- [ ] Create the upload user, attach the policy, create its access key.
+
+**On the exhibit computer:**
+
+- [ ] Python dependencies: `pip install -r requirements.txt` (includes
+      `boto3`).
+- [ ] Credentials file (step 4 above) with the museum's key under
+      `[exhibit-quantum]`. If this computer still has the test key under
+      that name, replace both lines.
+- [ ] In `main.py`, change `AWS_BUCKET` to the new bucket, and
+      `AWS_REGION` if the museum's region is not `us-east-2`. Leave
+      `AWS_PROFILE` as `exhibit-quantum` (or change both it and the
+      `[…]` name in the credentials file to match).
+- [ ] Check the clock syncs automatically.
+- [ ] Test (step 6): **FINISH**, status says "uploaded", phone with Wi-Fi
+      off opens the drawing. Test once **on the museum's network** too —
+      some venue networks block uploads.
+
+**Then retire the test account:**
+
+- [ ] Delete the test key: IAM → Users → `exhibit-quantum-uploader` →
+      Security credentials → Deactivate → Delete. (Or delete the user, the
+      policy and the bucket outright.)
+- [ ] Remove the `[exhibit-quantum]` test lines from any computer that
+      still has them, and `[profile exhibit-dev]` from `~/.aws/config` once
+      the admin sign-in is no longer needed.
+
+If an upload fails at any point, the exhibit keeps working on the Wi-Fi
+QR code and the terminal prints `[Cloud] Upload failed …` with the AWS
+reason — start there.
+
+## The same setup from the command line
+
+This is how the test account was set up, with the AWS CLI v2 and an admin
+sign-in (`aws login --region <region> --profile <admin-profile>`). Replace
+`BUCKET`, `REGION` and `ADMIN` with the museum's values. The key in the last
+step goes straight into the credentials file without being printed.
+
+```bash
+export AWS_PROFILE=ADMIN
+
+aws s3api create-bucket --bucket BUCKET --region REGION \
+  --create-bucket-configuration LocationConstraint=REGION
+# (omit --create-bucket-configuration when REGION is us-east-1)
+
+aws s3api put-bucket-lifecycle-configuration --bucket BUCKET \
+  --lifecycle-configuration '{"Rules":[{"ID":"delete-artwork-after-30-days","Status":"Enabled","Filter":{"Prefix":"artwork/"},"Expiration":{"Days":30}}]}'
+
+POL=$(aws iam create-policy --policy-name ExhibitQuantumArtworkUpload \
+  --query Policy.Arn --output text --policy-document \
+  '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["s3:PutObject","s3:GetObject"],"Resource":"arn:aws:s3:::BUCKET/artwork/*"}]}')
+aws iam create-user --user-name exhibit-quantum-uploader
+aws iam attach-user-policy --user-name exhibit-quantum-uploader --policy-arn "$POL"
+
+read -r KID SECRET <<< "$(aws iam create-access-key --user-name exhibit-quantum-uploader \
+  --query 'AccessKey.[AccessKeyId,SecretAccessKey]' --output text)"
+AWS_PROFILE= aws configure set aws_access_key_id "$KID" --profile exhibit-quantum
+AWS_PROFILE= aws configure set aws_secret_access_key "$SECRET" --profile exhibit-quantum
+AWS_PROFILE= aws configure set region REGION --profile exhibit-quantum
+unset SECRET
+```
+
+Using the admin sign-in profile from Python (e.g. for a quick test) needs
+`pip install "botocore[crt]"`; the exhibit itself uses plain access keys and
+does not. Never point `AWS_PROFILE` in `main.py` at the admin sign-in: its
+links are too long for a QR code (see below).
 
 ## Things to know
 
