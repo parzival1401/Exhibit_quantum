@@ -185,12 +185,16 @@ class QRDialog(QDialog):
             qr_lbl.setStyleSheet('border: none;')
             layout.addWidget(qr_lbl)
 
-        url_lbl = QLabel(url)
-        url_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        url_lbl.setFont(QFont('Courier', 9))
-        url_lbl.setStyleSheet('color: #445566;')
-        url_lbl.setWordWrap(True)
-        layout.addWidget(url_lbl)
+        # The Wi-Fi link is short and useful to staff checking the network.
+        # An S3 link runs to several hundred characters of signature — a
+        # wall of noise to a visitor — so it is left to the QR code alone.
+        if len(url) <= 120:
+            url_lbl = QLabel(url)
+            url_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
+            url_lbl.setFont(QFont('Courier', 9))
+            url_lbl.setStyleSheet('color: #445566;')
+            url_lbl.setWordWrap(True)
+            layout.addWidget(url_lbl)
 
         close_btn = QPushButton('Done  ✓')
         close_btn.setMinimumHeight(52)
@@ -433,6 +437,10 @@ class ImageProcessorWindow(QMainWindow):
     PAGE_GALLERY  = 1
     PAGE_COLORING = 2
 
+    # Delivered from the upload thread to the GUI thread: (link, file name).
+    # An empty link means the upload failed.
+    _cloud_done = pyqtSignal(str, str)
+
     def __init__(self, state):
         super().__init__()
         self.state            = state
@@ -445,6 +453,11 @@ class ImageProcessorWindow(QMainWindow):
         # QR code server state — serves SAVED_DIR, started on first Finish
         self._qr_server  = None
         self._qr_port    = None
+
+        # Amazon S3 settings, from configure_cloud(); None = Wi-Fi QR only
+        self._cloud      = None
+        self._uploading  = False
+        self._cloud_done.connect(self._on_cloud_done)
 
         self.setWindowTitle('Window 2 — Quantum Color Exhibit')
         self.setMinimumSize(900, 660)
@@ -1029,6 +1042,8 @@ class ImageProcessorWindow(QMainWindow):
         if self.template_array is None or self.region_labels is None:
             self.status.setText('No image loaded yet — please select one first')
             return
+        if self._uploading:
+            return   # a second press while the first is still uploading
 
         left_arr  = apply_region_colors(
             self.template_array, self.region_labels, self.left_region_colors
@@ -1045,22 +1060,68 @@ class ImageProcessorWindow(QMainWindow):
             fname = f'artwork_{stamp}_{n}.png'   # two finishes in one second
             n += 1
 
+        path = os.path.join(SAVED_DIR, fname)
         try:
-            Image.fromarray(combined.astype(np.uint8), 'RGB').save(
-                os.path.join(SAVED_DIR, fname)
-            )
+            Image.fromarray(combined.astype(np.uint8), 'RGB').save(path)
         except OSError as exc:
             self.status.setText(f'Could not save the artwork: {exc}')
             return
 
+        if self._cloud is None:
+            self.status.setText(f'Saved {fname}')
+            self._show_qr(self._wifi_url(fname))
+            return
+
+        # Upload off the GUI thread, so the screen never freezes on a slow
+        # network; _on_cloud_done shows the QR code when it lands.
+        self._uploading = True
+        self.finish_btn.setEnabled(False)
+        self.status.setText('Preparing your QR code…')
+        threading.Thread(
+            target=self._upload_in_background, args=(path, fname),
+            daemon=True, name='ArtworkUpload',
+        ).start()
+
+    # ── Amazon S3 (optional) ──────────────────────────────────────────────
+
+    def configure_cloud(self, bucket: str, region: str, profile: str,
+                        link_days: float):
+        """Send Finish's QR code through Amazon S3. An empty bucket keeps
+        the Wi-Fi QR code."""
+        self._cloud = (dict(bucket=bucket, region=region, profile=profile,
+                            link_days=link_days)
+                       if bucket else None)
+
+    def _upload_in_background(self, path: str, fname: str):
+        from cloud_upload import upload_artwork
+        try:
+            url = upload_artwork(path, fname, **self._cloud)
+        except Exception as exc:
+            print(f'[Cloud] Upload failed, using the Wi-Fi QR code: {exc}')
+            url = ''
+        self._cloud_done.emit(url, fname)
+
+    def _on_cloud_done(self, url: str, fname: str):
+        self._uploading = False
+        self.finish_btn.setEnabled(True)
+        if url:
+            self.status.setText(f'Saved {fname} — uploaded')
+        else:
+            # Offline or misconfigured: the exhibit keeps working on Wi-Fi
+            self.status.setText(f'Saved {fname} — upload failed, Wi-Fi link')
+            url = self._wifi_url(fname)
+        self._show_qr(url)
+
+    # ── QR code ───────────────────────────────────────────────────────────
+
+    def _wifi_url(self, fname: str) -> str:
+        """Link to `fname` on this machine's file server (same network only)."""
         # Start local HTTP server once (reused for every Finish)
         if self._qr_server is None:
             self._qr_server, self._qr_port = _start_file_server(SAVED_DIR)
+        return f'http://{_get_local_ip()}:{self._qr_port}/{fname}'
 
-        ip  = _get_local_ip()
-        url = f'http://{ip}:{self._qr_port}/{fname}'
-
-        self.status.setText(f'Saved {fname} — scan to download  ({url})')
+    def _show_qr(self, url: str):
         QRDialog(url, self).exec()
 
         # The visitor is done: hand the screen to the next one. Back to the

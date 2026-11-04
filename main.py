@@ -64,6 +64,16 @@ KIOSK_FRAMELESS = True
 # about once a second so the terminal stays readable.
 ARDUINO_DEBUG = False
 
+# QR code through Amazon S3 (optional). Left empty, the QR code is served
+# over the exhibit's own Wi-Fi, so phones must join that network. With a
+# bucket name, Finish uploads the artwork and the QR code works on any
+# connection, mobile data included; if the upload fails it falls back to
+# Wi-Fi. Setting up the bucket and the credentials file: AWS_SETUP.md.
+AWS_BUCKET    = ''
+AWS_REGION    = 'us-east-2'
+AWS_PROFILE   = 'exhibit-quantum'   # profile name in ~/.aws/credentials
+AWS_LINK_DAYS = 7                   # how long a QR link works (7 at most)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Manual screen assignment (exhibit / multi-monitor mode)
@@ -274,6 +284,8 @@ def main():
     w1 = RGBControllerWindow(state)
     w2 = ImageProcessorWindow(state)
     w3 = QuantumPaletteWindow(state)
+
+    w2.configure_cloud(AWS_BUCKET, AWS_REGION, AWS_PROFILE, AWS_LINK_DAYS)
 
     # ── Arduino physical controls ──────────────────────────────────────────
     # Auto-detects the Arduino USB port. If none is found, the app runs
