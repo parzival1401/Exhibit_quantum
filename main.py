@@ -69,7 +69,7 @@ ARDUINO_DEBUG = False
 # bucket name, Finish uploads the artwork and the QR code works on any
 # connection, mobile data included; if the upload fails it falls back to
 # Wi-Fi. Setting up the bucket and the credentials file: AWS_SETUP.md.
-AWS_BUCKET    = ''
+AWS_BUCKET    = 'exhibit-quantum-artwork-332778515287'   # test account; museum's later
 AWS_REGION    = 'us-east-2'
 AWS_PROFILE   = 'exhibit-quantum'   # profile name in ~/.aws/credentials
 AWS_LINK_DAYS = 7                   # how long a QR link works (7 at most)
