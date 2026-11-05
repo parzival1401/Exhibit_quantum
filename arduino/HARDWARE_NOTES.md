@@ -97,7 +97,8 @@ Wiring on the Mega (bottom plug RX1 / TX1 left unconnected on both):
 18–21 are four of the Mega's six external-interrupt pins; 2 and 3 are
 left for the RGB switches. Using 20 / 21 rules out I2C on this board.
 The Mega has 10 kΩ pull-ups on 20 / 21, which suits these active-LOW
-outputs. `spinner_test` only watches 18 / 19, so spinner 2 is untested.
+outputs. (`spinner_test` only watched 18 / 19; both spinners were later verified
+through the exhibit sketch.)
 
 **DIP switch** (unplug power before changing):
 
@@ -124,9 +125,11 @@ exhibit sketch already uses for SW_R / SW_G. The Mega has interrupts on
 pins 2, 3, 18, 19, 20 and 21, so the spinner fits on 18 / 19 without
 moving the switches.
 
-### Test sketch: `arduino/spinner_test/spinner_test.ino`
+### Test sketch: `spinner_test.ino`
 
-Stand-alone diagnostic for the Mega, not part of the exhibit. Run on
+Now kept in the documentation repo, https://github.com/parzival1401/Exhibit_quantum_documentatio
+(`arduino/spinner_test/spinner_test.ino`). Stand-alone diagnostic for the Mega,
+not part of the exhibit. Run on
 hardware 2026-11-03; RAW mode is what found the pinout above.
 
 Wiring: spinner 5V → 5V, GND → GND, spinner TX1 → pin 19 (RX1),

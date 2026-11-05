@@ -169,9 +169,9 @@ window2_image.py         gallery, drawing and saving
 window3_quantum.py       quantum palette, Heisenberg motion, meters
 image_utils.py           region detection, colour fill, quantum sampling
 arduino_bridge.py        reads the panel over USB serial
+cloud_upload.py          optional Amazon S3 upload for the QR code
 kiosk.py                 exhibition presentation and keyboard commands
 scaling.py               grows a fixed layout to fill a screen
-generate_test_image.py   makes a test drawing
 start_exhibit.bat        Windows launcher (restarts after a crash, logs to exhibit.log)
 install_autostart.bat    adds the launcher to the Windows Startup folder
 arduino/sketch/          the Arduino firmware
@@ -180,5 +180,16 @@ colored/                 finished references shown beside each template
 saved_images/            visitors' finished artwork, artwork_YYYY-MM-DD_HH-MM-SS.png
 ```
 
-`explanation.txt` is a plain-language walkthrough of the whole project for
-non-technical readers.
+## Documentation
+
+| Document | Read it for |
+| -------- | ----------- |
+| `README.md` (this file) | What the exhibit is, setting it up, running it, the controls, troubleshooting |
+| `arduino/HARDWARE_NOTES.md` | The Arduino Mega panel: wiring, the spinner pinout and DIP switches, the slider |
+| `AWS_SETUP.md` | Optional: sending the QR code through Amazon S3, and moving it to the museum's account |
+| `CLAUDE.md` | A compact technical map of the code — modules, functions, signals — for developers and AI assistants |
+
+Supporting material that is not needed to run or set up the exhibit — the
+older plain-language explanation, a documentation-generation prompt, the
+test-drawing generator, the test drawing and the spinner diagnostic sketch —
+is in [Exhibit_quantum_documentatio](https://github.com/parzival1401/Exhibit_quantum_documentatio).

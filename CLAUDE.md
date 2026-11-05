@@ -7,8 +7,11 @@ three screens, driven by an Arduino Mega panel of switches, two arcade
 spinners and a slider.
 
 `README.md` is the operator guide (setup, keys, troubleshooting).
-`explanation.txt` is the plain-language version for non-technical readers.
-`arduino/HARDWARE_NOTES.md` covers new controls under evaluation.
+`arduino/HARDWARE_NOTES.md` is the panel wiring and spinner reference.
+`AWS_SETUP.md` covers the optional S3 QR code.
+Non-essential material (old plain-language explanation, doc-generation prompt,
+test-drawing generator, spinner diagnostic sketch) lives in the separate
+repo https://github.com/parzival1401/Exhibit_quantum_documentatio.
 
 ## Objective
 
@@ -52,7 +55,6 @@ Its colour follows both sources live — no separate confirm step.
 | `kiosk.py` | Exhibition mode: hides buttons and dev readouts, frameless windows, keyboard commands (staff fallback). `Esc` reveals controls, `X` quits. |
 | `scaling.py` | `apply_uniform_scaling`: grows a fixed layout to fill a screen. |
 | `theme.py` | Shared dark colour tokens and stylesheet helpers for all three screens. |
-| `generate_test_image.py` | Makes a test drawing. |
 | `start_exhibit.bat`, `install_autostart.bat` | Windows 11 auto-start: launcher (15 s boot delay, `.venv` python, restarts on a non-zero exit, X exits 0 and stops it, logs to `exhibit.log`) and a one-click Startup-folder shortcut. Setup steps in README *Auto-start on Windows 11*. |
 
 Keyboard fallback: `R` `G` `B` toggle channels, `P`/`Space` push classical,
