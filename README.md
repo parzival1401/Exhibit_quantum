@@ -73,18 +73,20 @@ The exhibit machine should come up straight into the exhibit after a power
 cut or a morning switch-on, with nobody at the keyboard.
 
 `start_exhibit.bat` launches the exhibit: it waits 15 s for the monitors,
-touchscreen and Arduino to come up, runs `main.py` with the project's
-`.venv` (or `python` if there is none), and writes everything to
-`exhibit.log`. If the exhibit crashes it starts again after 5 s; quitting
-with **X** stops it for good.
+touchscreen and Arduino to come up, finds a Python that has the exhibit's
+packages (the project's `.venv`, then `venv`, then `py -3`, then
+`python`), runs `main.py` with it, and writes everything to `exhibit.log`.
+It works wherever the project folder is. If the exhibit crashes it starts
+again after 5 s; quitting with **X** stops it for good.
 
 One-time setup on the exhibit computer:
 
 1. **Install** Python and the requirements into `.venv` (see *Running it*),
    and check that double-clicking `start_exhibit.bat` opens the exhibit.
-2. **Auto-start:** double-click `install_autostart.bat`. It puts an
-   "Exhibit Quantum" shortcut in the Startup folder, set to run minimised.
-   To undo, press Win+R, type `shell:startup` and delete the shortcut.
+2. **Auto-start:** double-click `install_autostart.bat` inside the project
+   folder. It puts an "Exhibit Quantum" shortcut in the Startup folder and
+   prints the path it points to. Run it again whenever the project folder
+   moves. To undo, press Win+R, type `shell:startup` and delete the shortcut.
 3. **Sign in automatically** — the Startup folder only runs once someone
    signs in:
    - Settings → Accounts → Sign-in options → turn **off** "For improved
@@ -98,6 +100,15 @@ One-time setup on the exhibit computer:
    → **Active hours** covering opening hours, so updates do not restart it
    mid-day; Settings → System → Notifications → turn on **Do not disturb**.
 6. **Restart the computer** and check the exhibit appears on its own.
+
+If it does not appear, open `exhibit.log` in the project folder:
+
+| Last lines of `exhibit.log` | Meaning and fix |
+| --------------------------- | --------------- |
+| No new "Launcher started" line | Windows did not run the shortcut. Check that `shell:startup` holds "Exhibit Quantum", that it is **On** in Settings → Apps → Startup, and that the computer signs in by itself (step 3). |
+| "No Python with PyQt6 found" | Install the requirements into `.venv` (step 1). |
+| "Exited with code …" repeating, with a Python error above it | The exhibit itself fails; the error says why. |
+| "Exhibit closed normally" | Someone pressed X. |
 
 ## Configuration
 

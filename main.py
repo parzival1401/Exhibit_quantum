@@ -31,6 +31,15 @@ Three synchronized windows open side-by-side:
 import sys
 import os
 
+# The console output uses box-drawing characters and arrows. When it is
+# sent to a file, as start_exhibit.bat does with exhibit.log, Windows
+# Python writes in cp1252, which has none of them, so the first such
+# print crashed the exhibit before any window appeared. Write UTF-8
+# instead, and never let a character that will not encode stop the app.
+for _stream in (sys.stdout, sys.stderr):
+    if _stream is not None and hasattr(_stream, 'reconfigure'):
+        _stream.reconfigure(encoding='utf-8', errors='replace')
+
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QPalette, QColor, QFont
 

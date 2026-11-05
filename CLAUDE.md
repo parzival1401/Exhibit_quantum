@@ -55,7 +55,7 @@ Its colour follows both sources live — no separate confirm step.
 | `kiosk.py` | Exhibition mode: hides buttons and dev readouts, frameless windows, keyboard commands (staff fallback). `Esc` reveals controls, `X` quits. |
 | `scaling.py` | `apply_uniform_scaling`: grows a fixed layout to fill a screen. |
 | `theme.py` | Shared dark colour tokens and stylesheet helpers for all three screens. |
-| `start_exhibit.bat`, `install_autostart.bat` | Windows 11 auto-start: launcher (15 s boot delay, `.venv` python, restarts on a non-zero exit, X exits 0 and stops it, logs to `exhibit.log`) and a one-click Startup-folder shortcut. Setup steps in README *Auto-start on Windows 11*. |
+| `start_exhibit.bat`, `install_autostart.bat` | Windows 11 auto-start: launcher (15 s boot delay, picks the first Python that imports PyQt6: `.venv`, `venv`, `py -3`, `python`; forces UTF-8 output; restarts on a non-zero exit, X exits 0 and stops it, logs to `exhibit.log`) and a one-click Startup-folder shortcut. Setup steps in README *Auto-start on Windows 11*. |
 
 Keyboard fallback: `R` `G` `B` toggle channels, `P`/`Space` push classical,
 arrows move selector, `[` `]` resize, `A` pauses/resumes auto-move (on at start), `Enter` collapse, `Q`
