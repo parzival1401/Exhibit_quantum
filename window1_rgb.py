@@ -16,7 +16,6 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont, QColor
 
-import theme
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -119,10 +118,9 @@ class RGBControllerWindow(QMainWindow):
         lamp_bar = QWidget()
         lamp_bar.setLayout(lamp_row)
         lamp_row.setContentsMargins(20, 14, 20, 20)
-        # Dark strip so the lamps stay readable whatever colour is mixed.
-        # The same bar the uncertainty meters sit in on Window 3, so the
-        # two side screens read as one piece of furniture.
-        lamp_bar.setStyleSheet(theme.bottom_bar())
+        # No background of its own: the lamps sit straight on the colour,
+        # so the whole screen stays the mix. Each lamp's ring keeps it
+        # readable whatever colour is behind it.
         layout.addWidget(lamp_bar)
 
         # Kept for the code that still reads them (kiosk mode hides these,

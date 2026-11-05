@@ -52,8 +52,8 @@ def page(background: str = BG_DEEP) -> str:
 def bottom_bar() -> str:
     """Stylesheet for a bar pinned along the bottom of a screen.
 
-    Used by both side screens, which is what makes the channel lamps and
-    the uncertainty meters read as the same piece of furniture.
+    Holds the uncertainty meters on Window 3. Window 1's channel lamps
+    have no bar: they sit straight on the colour.
     """
     return (f'background-color: {BG_BAR};'
             f'border-top: 1px solid {BORDER};')
