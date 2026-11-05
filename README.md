@@ -67,6 +67,38 @@ The windows detect the attached monitors and place themselves. With three
 screens each window goes full-screen on its own; with fewer they tile side
 by side on one, which is the convenient arrangement for development.
 
+## Auto-start on Windows 11
+
+The exhibit machine should come up straight into the exhibit after a power
+cut or a morning switch-on, with nobody at the keyboard.
+
+`start_exhibit.bat` launches the exhibit: it waits 15 s for the monitors,
+touchscreen and Arduino to come up, runs `main.py` with the project's
+`.venv` (or `python` if there is none), and writes everything to
+`exhibit.log`. If the exhibit crashes it starts again after 5 s; quitting
+with **X** stops it for good.
+
+One-time setup on the exhibit computer:
+
+1. **Install** Python and the requirements into `.venv` (see *Running it*),
+   and check that double-clicking `start_exhibit.bat` opens the exhibit.
+2. **Auto-start:** double-click `install_autostart.bat`. It puts an
+   "Exhibit Quantum" shortcut in the Startup folder, set to run minimised.
+   To undo, press Win+R, type `shell:startup` and delete the shortcut.
+3. **Sign in automatically** — the Startup folder only runs once someone
+   signs in:
+   - Settings → Accounts → Sign-in options → turn **off** "For improved
+     security, only allow Windows Hello sign-in".
+   - Win+R → `netplwiz` → untick "Users must enter a user name and password
+     to use this computer" → OK → enter the account's password.
+     (Use a local account for the exhibit if this option is missing.)
+4. **Keep it awake:** Settings → System → Power → Screen, sleep and
+   hibernate → set every option to **Never**.
+5. **No surprises on screen:** Settings → Windows Update → Advanced options
+   → **Active hours** covering opening hours, so updates do not restart it
+   mid-day; Settings → System → Notifications → turn on **Do not disturb**.
+6. **Restart the computer** and check the exhibit appears on its own.
+
 ## Configuration
 
 All of it sits at the top of `main.py`:
@@ -140,6 +172,8 @@ arduino_bridge.py        reads the panel over USB serial
 kiosk.py                 exhibition presentation and keyboard commands
 scaling.py               grows a fixed layout to fill a screen
 generate_test_image.py   makes a test drawing
+start_exhibit.bat        Windows launcher (restarts after a crash, logs to exhibit.log)
+install_autostart.bat    adds the launcher to the Windows Startup folder
 arduino/sketch/          the Arduino firmware
 images/                  line-art templates
 colored/                 finished references shown beside each template
