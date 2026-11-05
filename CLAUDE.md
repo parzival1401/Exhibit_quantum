@@ -55,7 +55,7 @@ Its colour follows both sources live — no separate confirm step.
 | `generate_test_image.py` | Makes a test drawing. |
 
 Keyboard fallback: `R` `G` `B` toggle channels, `P`/`Space` push classical,
-arrows move selector, `[` `]` resize, `A` auto-move, `Enter` collapse, `Q`
+arrows move selector, `[` `]` resize, `A` pauses/resumes auto-move (on at start), `Enter` collapse, `Q`
 collapse + push, `Ctrl+S/G` finish / gallery.
 
 ## Hardware
@@ -76,7 +76,7 @@ Switches use `INPUT_PULLUP` (LOW = pressed). The board sends one line every
 0–1023; X / Y slots are always 0 now; E = spinner steps since the last
 line). Push/collapse fire on the rising edge. Spinners count in interrupts
 (pulses under 200 µs ignored). Once an E section arrives, Window 3 ignores
-the X / Y pot slots. Spinners move the selector directly when auto-move is
+the X / Y pot slots. Auto-move (Heisenberg motion) starts on. Spinners move the selector directly when auto-move is
 off and nudge its velocity when on.
 
 **Under evaluation** (details in `arduino/HARDWARE_NOTES.md`):

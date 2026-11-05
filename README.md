@@ -95,7 +95,7 @@ panel is unplugged:
 | `P` / `Space` | Push the classical colour into the selected region |
 | Arrow keys | Move the selector |
 | `[` `]` | Shrink / grow the selector (and so speed it up / slow it down) |
-| `A` | Start or stop the automatic movement |
+| `A` | Pause or resume the automatic (Heisenberg) movement — on at start |
 | `Enter` | Collapse |
 | `Q` | Collapse and push |
 | `Ctrl+S` / `Ctrl+G` | Finish (save + QR code) / back to gallery |

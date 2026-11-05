@@ -284,6 +284,11 @@ class QuantumPaletteWindow(QMainWindow):
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setFocus()
 
+        # The uncertainty principle is what this screen demonstrates, so the
+        # Heisenberg motion runs from the start. A (or the hidden button)
+        # still pauses it.
+        self._toggle_animation()
+
     # ── UI construction ───────────────────────────────────────────────────
 
     def _build_ui(self):

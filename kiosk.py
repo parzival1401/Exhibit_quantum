@@ -26,7 +26,7 @@ Keyboard commands (work from any of the three windows)
   Window 3 — quantum side
       ↑ ↓ ← →        move the palette selector
       [  /  ]        shrink / grow the selector (Δx, and so the speed)
-      A              start / stop Heisenberg auto-move
+      A              pause / resume Heisenberg auto-move (on at start)
       Enter          collapse the palette to a single colour
       Q              collapse and push into the selected region
 
