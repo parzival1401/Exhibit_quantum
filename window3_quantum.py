@@ -42,7 +42,11 @@ from image_utils import create_gradient_palette, quantum_collapse
 import theme
 
 # ── Palette canvas dimensions ─────────────────────────────────────────────────
-PAL_W = 520
+# The shape the palette is drawn at on a full-screen 16:9 monitor (928×423
+# on the 960×540 canvas main.py lays this window out on), so the gradient
+# is not stretched and the selector stays square. Selector size, speed and
+# the spinner steps are all in these units.
+PAL_W = 636
 PAL_H = 290
 
 # ── Selector size limits (shared by the slider, the pots and the meters) ─────

@@ -40,17 +40,24 @@ class _ScalingView(QGraphicsView):
         self.fitInView(self.sceneRect(), Qt.AspectRatioMode.KeepAspectRatio)
 
 
-def apply_uniform_scaling(window):
+def apply_uniform_scaling(window, design_size=None):
     """
     Wrap `window`'s current central widget so its fixed design layout
     scales up/down as one unit to fill the window.
+
+    `design_size` is the canvas the layout is built on. Give it the
+    screen's shape (main.py passes 960×540, half of 1920×1080) and the
+    design fills the screen edge to edge, at exactly 2× on a Full HD
+    monitor. Without it the window's current size is used, and a design
+    of another shape is letterboxed with bars at the sides.
 
     Call this AFTER the window's _build_ui() has run and setFixedSize()
     has been removed (the window must be resizable for scaling to have
     any effect).
     """
     content = window.centralWidget()
-    design_size = content.sizeHint() if content.size().isEmpty() else content.size()
+    if design_size is None:
+        design_size = content.sizeHint() if content.size().isEmpty() else content.size()
 
     content.setParent(None)
     content.resize(design_size)

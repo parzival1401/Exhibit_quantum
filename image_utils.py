@@ -211,25 +211,32 @@ def apply_region_colors(
     selected_region : highlight this region ID with a yellow tint (-1 = none)
     default_fill    : colour for regions not yet assigned a colour
     """
-    result = template_array.copy().astype(np.float32)
-
-    # Paint all non-outline pixels with the default (uncoloured) fill
-    fillable = region_labels > 0
-    result[fillable] = default_fill
-
-    # Apply explicit per-region colours
+    # One colour per region ID, then a single lookup paints every pixel.
+    # A mask per region costs a full pass over the image each, which at
+    # full-screen resolution was too slow to follow the quantum selector
+    # live; the lookup is one pass whatever the number of regions.
+    n_ids = int(region_labels.max()) + 1
+    lut = np.empty((n_ids, 3), dtype=np.uint8)
+    lut[:] = default_fill
     for rid, color in region_colors.items():
-        mask = region_labels == rid
-        result[mask] = color
+        if 0 < rid < n_ids:
+            lut[rid] = color
+
+    result = lut[region_labels]
+
+    # Outlines (region 0) keep the template's own pixels.
+    outline = region_labels == 0
+    result[outline] = template_array[outline]
 
     # Yellow highlight for the currently selected region
     if selected_region > 0:
         sel = region_labels == selected_region
         if sel.any():
             yellow = np.array([255.0, 215.0, 40.0])
-            result[sel] = 0.55 * result[sel] + 0.45 * yellow
+            result[sel] = np.clip(0.55 * result[sel] + 0.45 * yellow,
+                                  0, 255).astype(np.uint8)
 
-    return np.clip(result, 0, 255).astype(np.uint8)
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────

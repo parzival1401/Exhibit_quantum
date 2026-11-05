@@ -42,6 +42,7 @@ for _stream in (sys.stdout, sys.stderr):
 
 from PyQt6.QtWidgets import QApplication
 from PyQt6.QtGui import QPalette, QColor, QFont
+from PyQt6.QtCore import QSize
 
 from app_state        import AppState
 from window1_rgb      import RGBControllerWindow
@@ -101,6 +102,13 @@ SCREEN_FOR_W3 = 2   # Quantum Probability Palette
 # figure out which physical monitor is which index before wiring the
 # SCREEN_FOR_W* constants above.
 IDENTIFY_SCREENS = False
+
+# The exhibit monitors' resolution. The classical and quantum screens are
+# laid out on a canvas of this shape at half size and drawn at 2×, so on
+# a monitor of this resolution they fill it exactly; the drawing screen
+# lays itself out at the full size. A monitor reporting anything else is
+# named in the log at start-up, since its picture will not be as designed.
+SCREEN_RESOLUTION = (1920, 1080)
 
 
 
@@ -167,11 +175,25 @@ def _sorted_screens(app: QApplication) -> list:
     return sorted(app.screens(), key=lambda s: s.availableGeometry().left())
 
 
+def _pixel_size(screen) -> tuple:
+    """The screen's real resolution in pixels.
+
+    Qt works in logical pixels: with Windows display scaling at 125 %, a
+    1920×1080 monitor reports 1536×864. Multiplying back by the scale
+    gives the panel's own pixels, which is what SCREEN_RESOLUTION means.
+    """
+    g, dpr = screen.geometry(), screen.devicePixelRatio()
+    return round(g.width() * dpr), round(g.height() * dpr)
+
+
 def _print_screens(screens: list):
     print('\n  [display] Detected screens (index : name : position : resolution)')
     for i, s in enumerate(screens):
         g = s.geometry()
-        print(f'    {i} : {s.name()} : ({g.left()}, {g.top()}) : {g.width()}x{g.height()}')
+        w, h = _pixel_size(s)
+        scale = s.devicePixelRatio()
+        note = f'   (Windows scaling {scale:.0%})' if scale != 1 else ''
+        print(f'    {i} : {s.name()} : ({g.left()}, {g.top()}) : {w}x{h}{note}')
     print()
 
 
@@ -232,12 +254,21 @@ def _place_windows(app: QApplication, w1, w2, w3):
     _print_screens(screens)
 
     if len(screens) >= 3:
-        # W1 and W3 are built at a fixed design size — scale that whole
-        # design up to fill the screen. W2 already re-renders its image
-        # panels on resize (see ImageProcessorWindow.resizeEvent), so it
-        # scales natively and needs no wrapper.
-        apply_uniform_scaling(w1)
-        apply_uniform_scaling(w3)
+        # W1 and W3 are laid out on a half-size canvas of the monitors'
+        # shape and scaled up to fill the screen, 2× on Full HD. W2
+        # already re-renders its image panels on resize (see
+        # ImageProcessorWindow.resizeEvent), so it lays itself out at the
+        # full size and needs no wrapper.
+        design = QSize(SCREEN_RESOLUTION[0] // 2, SCREEN_RESOLUTION[1] // 2)
+        apply_uniform_scaling(w1, design)
+        apply_uniform_scaling(w3, design)
+
+        for idx in (SCREEN_FOR_W1, SCREEN_FOR_W2, SCREEN_FOR_W3):
+            if _pixel_size(screens[idx]) != SCREEN_RESOLUTION:
+                w, h = _pixel_size(screens[idx])
+                print(f'  [display] WARNING: screen {idx} is {w}x{h}, not '
+                      f'{SCREEN_RESOLUTION[0]}x{SCREEN_RESOLUTION[1]}. Set it in '
+                      f'Windows Settings → System → Display → Display resolution.')
 
         assignments = [
             (w1, SCREEN_FOR_W1),

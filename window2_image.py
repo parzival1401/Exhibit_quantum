@@ -59,9 +59,15 @@ os.makedirs(SAVED_DIR,   exist_ok=True)
 
 _SUPPORTED_EXTS = ('.png', '.jpg', '.jpeg', '.bmp', '.svg')
 _IMAGE_FILTER   = 'Images (*.png *.jpg *.jpeg *.bmp *.svg);;All files (*)'
-_THUMB_W        = 210      # card thumbnail width  (px)
-_THUMB_H        = 190      # card thumbnail height (px)
-_CARD_COLS      = 3        # columns in the gallery grid
+_THUMB_W        = 320      # card thumbnail width  (px)
+_THUMB_H        = 300      # card thumbnail height (px)
+_CARD_COLS      = 4        # columns in the gallery grid (4 fit 1920 px)
+_BADGE_PX       = 80       # coloured-reference badge on a card (px)
+
+# Size the drawing is loaded at. Each panel is about 900 px across on a
+# 1920×1080 screen, so 800 keeps the lines sharp there; at 400 they were
+# stretched to twice their size and blurred.
+_TEMPLATE_PX    = 800
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -225,8 +231,8 @@ def _svg_to_array(svg_path: str, size: int = 400) -> np.ndarray:
 
     renderer = QSvgRenderer(svg_path)
     default  = renderer.defaultSize()
-    w = default.width()  * 2 if default.isValid() else size
-    h = default.height() * 2 if default.isValid() else size
+    w = max(default.width()  * 2, size) if default.isValid() else size
+    h = max(default.height() * 2, size) if default.isValid() else size
 
     qimg = _QI(w, h, _QI.Format.Format_RGB888)
     qimg.fill(_QC(255, 255, 255))
@@ -265,10 +271,18 @@ def _to_pixmap(array: np.ndarray) -> QPixmap:
 
 class ClickableLabel(QLabel):
     clicked = pyqtSignal(float, float)
+    resized = pyqtSignal()
 
     def __init__(self):
         super().__init__()
         self.setCursor(QCursor(Qt.CursorShape.CrossCursor))
+        # A label otherwise refuses to shrink below its pixmap, so the
+        # drawing could only ever grow with the window.
+        self.setMinimumSize(1, 1)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.resized.emit()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -322,7 +336,7 @@ class ImageCard(QWidget):
             name = name[:22] + '…'
         name_lbl = QLabel(name)
         name_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        name_lbl.setFont(QFont('Arial', 10))
+        name_lbl.setFont(QFont('Arial', 13))
         name_lbl.setStyleSheet('color: #ccccff; border: none; background: transparent;')
         name_lbl.setWordWrap(True)
         layout.addWidget(name_lbl)
@@ -332,19 +346,19 @@ class ImageCard(QWidget):
             badge = QLabel(self)
             badge.setPixmap(
                 _to_pixmap(colored_array).scaled(
-                    52, 52,
+                    _BADGE_PX - 2, _BADGE_PX - 2,
                     Qt.AspectRatioMode.KeepAspectRatioByExpanding,
                     Qt.TransformationMode.SmoothTransformation,
                 )
             )
-            badge.setFixedSize(54, 54)
+            badge.setFixedSize(_BADGE_PX, _BADGE_PX)
             badge.setStyleSheet(
                 'border: 2px solid #ffcc44; border-radius: 4px;'
                 ' background: transparent;'
             )
             badge.setToolTip('Reference colored image')
             # Anchor to bottom-right of the thumbnail area
-            badge.move(_THUMB_W + 10 - 58, _THUMB_H + 10 - 58)
+            badge.move(_THUMB_W + 6 - _BADGE_PX, _THUMB_H + 6 - _BADGE_PX)
             badge.raise_()
 
     def _apply(self, style: str):
@@ -385,7 +399,7 @@ class ImagePanel(QWidget):
 
         lbl = QLabel(title)
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setFont(QFont('Arial', 12, QFont.Weight.Bold))
+        lbl.setFont(QFont('Arial', 16, QFont.Weight.Bold))
         layout.addWidget(lbl)
 
         self.img_label = ClickableLabel()
@@ -397,12 +411,14 @@ class ImagePanel(QWidget):
             'border: 2px solid #555555; background-color: #1c1c1c;'
         )
         self.img_label.clicked.connect(self.region_clicked)
+        self.img_label.resized.connect(self._fit_pixmap)
         layout.addWidget(self.img_label)
+        self._pixmap = None
 
         self.swatch = QLabel()
-        self.swatch.setFixedHeight(28)
+        self.swatch.setFixedHeight(36)
         self.swatch.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.swatch.setFont(QFont('Courier', 10))
+        self.swatch.setFont(QFont('Courier', 13))
         self._set_swatch(swatch_color)
         layout.addWidget(self.swatch)
 
@@ -416,15 +432,26 @@ class ImagePanel(QWidget):
         self.swatch.setText(f'RGB  ({r}, {g}, {b})')
 
     def update_image(self, array: np.ndarray, swatch_color: tuple = None):
-        pixmap = _to_pixmap(array)
-        scaled = pixmap.scaled(
+        self._pixmap = _to_pixmap(array)
+        self._fit_pixmap()
+        if swatch_color is not None:
+            self._set_swatch(swatch_color)
+
+    def _fit_pixmap(self):
+        """Scale the drawing to fill the panel.
+
+        Also runs whenever the panel changes size. The colouring page is
+        laid out only when it is first shown, after the drawing has been
+        rendered, so without this the first drawing stayed at the small
+        size the hidden page had.
+        """
+        if self._pixmap is None:
+            return
+        self.img_label.setPixmap(self._pixmap.scaled(
             self.img_label.size(),
             Qt.AspectRatioMode.KeepAspectRatio,
             Qt.TransformationMode.SmoothTransformation,
-        )
-        self.img_label.setPixmap(scaled)
-        if swatch_color is not None:
-            self._set_swatch(swatch_color)
+        ))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -560,8 +587,8 @@ class ImageProcessorWindow(QMainWindow):
         top = QHBoxLayout()
 
         back_btn = QPushButton('← Back')
-        back_btn.setFixedSize(120, 44)
-        back_btn.setFont(QFont('Arial', 12))
+        back_btn.setFixedSize(160, 56)
+        back_btn.setFont(QFont('Arial', 15))
         back_btn.setCursor(QCursor(Qt.CursorShape.PointingHandCursor))
         back_btn.setStyleSheet("""
             QPushButton {
@@ -581,11 +608,11 @@ class ImageProcessorWindow(QMainWindow):
 
         gal_title = QLabel('Choose an Image to Color')
         gal_title.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        gal_title.setFont(QFont('Arial', 17, QFont.Weight.Bold))
+        gal_title.setFont(QFont('Arial', 24, QFont.Weight.Bold))
         gal_title.setStyleSheet('color: #ccccff;')
         top.addWidget(gal_title, stretch=1)
 
-        top.addSpacing(120)   # visual balance opposite the back button
+        top.addSpacing(160)   # visual balance opposite the back button
         outer.addLayout(top)
 
         # Scrollable grid area
@@ -604,8 +631,8 @@ class ImageProcessorWindow(QMainWindow):
         self.gallery_inner = QWidget()
         self.gallery_inner.setStyleSheet('background: transparent;')
         self.gallery_grid  = QGridLayout(self.gallery_inner)
-        self.gallery_grid.setSpacing(20)
-        self.gallery_grid.setContentsMargins(10, 10, 10, 10)
+        self.gallery_grid.setSpacing(32)
+        self.gallery_grid.setContentsMargins(10, 30, 10, 10)
 
         self.gallery_scroll.setWidget(self.gallery_inner)
         outer.addWidget(self.gallery_scroll, stretch=1)
@@ -827,15 +854,17 @@ class ImageProcessorWindow(QMainWindow):
             if arr is None:
                 continue
             colored_path = _find_colored_reference(path)
-            colored_arr  = _load_image_array(colored_path, size=60) if colored_path else None
+            colored_arr  = _load_image_array(colored_path, size=_BADGE_PX) if colored_path else None
             card = ImageCard(path, arr, colored_arr)
             card.selected.connect(self._on_gallery_selected)
             row, col = divmod(idx, _CARD_COLS)
-            self.gallery_grid.addWidget(card, row, col)
+            self.gallery_grid.addWidget(card, row, col + 1)
 
-        # Push cards to the top-left inside the scroll area
+        # Centre the cards across the screen and keep them at the top:
+        # empty stretch columns either side, an empty stretch row below.
+        self.gallery_grid.setColumnStretch(0, 1)
+        self.gallery_grid.setColumnStretch(_CARD_COLS + 1, 1)
         self.gallery_grid.setRowStretch(self.gallery_grid.rowCount(), 1)
-        self.gallery_grid.setColumnStretch(_CARD_COLS, 1)
 
     def _on_gallery_selected(self, path: str):
         self._load_template_from_path(path)
@@ -844,7 +873,7 @@ class ImageProcessorWindow(QMainWindow):
     # ── Template loading ──────────────────────────────────────────────────
 
     def _load_template_from_path(self, img_path: str):
-        arr = _load_image_array(img_path, size=400)
+        arr = _load_image_array(img_path, size=_TEMPLATE_PX)
         if arr is None:
             QMessageBox.warning(
                 self, 'Load Error',

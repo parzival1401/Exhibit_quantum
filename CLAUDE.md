@@ -45,7 +45,7 @@ Its colour follows both sources live — no separate confirm step.
 
 | File | What it does |
 | ---- | ------------ |
-| `main.py` | Entry point. Config flags at the top (`SCREEN_FOR_W1/W2/W3`, `IDENTIFY_SCREENS`, `KIOSK_FRAMELESS`, `ARDUINO_DEBUG`). Builds the windows, connects the Arduino signals, places windows: one per monitor with 3+ screens, tiled on one screen otherwise. |
+| `main.py` | Entry point. Config flags at the top (`SCREEN_FOR_W1/W2/W3`, `IDENTIFY_SCREENS`, `SCREEN_RESOLUTION` (1920×1080; W1/W3 laid out at half that and scaled 2×, warns at start-up if a monitor differs), `KIOSK_FRAMELESS`, `ARDUINO_DEBUG`). Builds the windows, connects the Arduino signals, places windows: one per monitor with 3+ screens, tiled on one screen otherwise. |
 | `app_state.py` | `AppState(QObject)`: the single source of truth shared by the windows. Properties `rgb_color`, `quantum_color`, `selected_region`; signals `rgb_color_changed`, `quantum_color_changed`, `selected_region_changed`, `push_rgb_requested`, `push_quantum_requested`. |
 | `window1_rgb.py` | `RGBControllerWindow`. `apply_switches(r, g, b)` takes the hardware switch states. |
 | `window2_image.py` | `ImageProcessorWindow` (stacked welcome/gallery/colouring pages), `ImageCard`, `ImagePanel`, `QRDialog`. Loads PNG/JPG/BMP/SVG from `images/` (SVG via QtSvg); pairs each with a finished reference in `colored/` by base name. `_finish()` saves left + right side by side to `saved_images/artwork_YYYY-MM-DD_HH-MM-SS.png` (suffix `_2`… within one second) and shows `QRDialog`, then returns to the welcome page however the dialog closes; by default a local HTTP server serves that folder (directory listing disabled), so the phone must be on the same network. With `AWS_BUCKET` set in `main.py`, `_finish()` uploads in a background thread via `cloud_upload.py` (boto3, private bucket, presigned link ≤ 7 days) and falls back to Wi-Fi on any failure; setup in `AWS_SETUP.md`. Printing was removed. |
@@ -53,7 +53,7 @@ Its colour follows both sources live — no separate confirm step.
 | `image_utils.py` | `create_gradient_palette` (X = hue, Y = brightness), `identify_regions` (connected components on light pixels; dark = outline = region 0), `apply_region_colors`, `apply_color_to_template`, `quantum_collapse` (per-channel normal distribution over the box's pixels → weighted random pick of one pixel). |
 | `arduino_bridge.py` | `ArduinoBridge(QObject)`: auto-detects the board by USB vendor ID (`_ARDUINO_VIDS`), reads serial in a daemon thread, emits `switches_changed`, `pots_changed`, `spinners_moved`, `push_rgb_pressed`, `collapse_pressed`. No board → software-only mode. |
 | `kiosk.py` | Exhibition mode: hides buttons and dev readouts, frameless windows, keyboard commands (staff fallback). `Esc` reveals controls, `X` quits. |
-| `scaling.py` | `apply_uniform_scaling`: grows a fixed layout to fill a screen. |
+| `scaling.py` | `apply_uniform_scaling(window, design_size)`: lays a window out on a fixed canvas and scales it to fill the screen. |
 | `theme.py` | Shared dark colour tokens and stylesheet helpers for all three screens. |
 | `start_exhibit.bat`, `install_autostart.bat` | Windows 11 auto-start: launcher (15 s boot delay, picks the first Python that imports PyQt6: `.venv`, `venv`, `py -3`, `python`; forces UTF-8 output; restarts on a non-zero exit, X exits 0 and stops it, logs to `exhibit.log`) and a one-click Startup-folder shortcut. Setup steps in README *Auto-start on Windows 11*. |
 

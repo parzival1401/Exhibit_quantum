@@ -118,6 +118,7 @@ All of it sits at the top of `main.py`:
 | ------- | ------- |
 | `SCREEN_FOR_W1/W2/W3` | Which physical monitor shows which window. Screens are numbered left to right. |
 | `IDENTIFY_SCREENS` | Set `True` to flash each screen's number on itself, to find out which is which. |
+| `SCREEN_RESOLUTION` | The monitors' resolution, `(1920, 1080)`. The classical and quantum screens are laid out in this shape so they fill the monitor exactly. Each screen's real resolution is printed at start-up, with a warning for any that differs; set it in Windows Settings → System → Display. |
 | `KIOSK_FRAMELESS` | Drop the window title bars. Turn off if the window manager needs them. |
 | `ARDUINO_DEBUG` | Print the readings arriving from the panel. See *Troubleshooting*. |
 | `AWS_BUCKET` … | Send the QR code through Amazon S3 so it works without the exhibit's Wi-Fi. Empty = Wi-Fi only. See `AWS_SETUP.md`. |
