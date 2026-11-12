@@ -1,0 +1,440 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Quantum Panel Wiring</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: one engineering sheet — title block, pin map, the schematic, then the wire-by-wire build list. */
+:root {
+  --paper: #EEF2F4; --sheet: #FFFFFF; --ink: #15212B; --muted: #5A6A77; --line: #D2DBE1; --accent: #0E6C8A;
+  --w-5v: #D1293D; --w-gnd: #1A1F24; --w-sw: #C48600; --w-pot: #7A4CC9; --w-r: #1F6BD0; --w-l: #13915A; --w-nc: #9AA7B1;
+  --pad: #E3E9ED;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --paper: #0D1317; --sheet: #141C22; --ink: #E3EBF0; --muted: #93A3AF; --line: #2A3740; --accent: #52B6D4;
+  --w-5v: #FF5E70; --w-gnd: #D3DBE1; --w-sw: #F0B429; --w-pot: #A98CF2; --w-r: #5E9DFF; --w-l: #3CCB86; --w-nc: #5F6E79;
+  --pad: #22303A; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --paper: #0D1317; --sheet: #141C22; --ink: #E3EBF0; --muted: #93A3AF; --line: #2A3740; --accent: #52B6D4;
+  --w-5v: #FF5E70; --w-gnd: #D3DBE1; --w-sw: #F0B429; --w-pot: #A98CF2; --w-r: #5E9DFF; --w-l: #3CCB86; --w-nc: #5F6E79;
+  --pad: #22303A; color-scheme: dark }
+
+body { background: var(--paper); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-block: 32px 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 28px; }
+
+header { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 24px; align-items: end; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 6px; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(30px, 4.4vw, 46px); line-height: 1.02; margin: 0; text-wrap: balance; letter-spacing: -.01em; }
+.lead { margin: 10px 0 0; max-width: 64ch; color: var(--muted); }
+.tblock { display: grid; grid-template-columns: auto auto; border: 1.5px solid var(--ink); font-family: var(--f-mono); font-size: 12px; background: var(--sheet); }
+.tblock div { padding: 5px 10px; border-bottom: 1px solid var(--line); }
+.tblock div:nth-child(odd) { color: var(--muted); text-transform: uppercase; letter-spacing: .08em; border-right: 1px solid var(--line); }
+.tblock div:nth-last-child(-n+2) { border-bottom: 0; }
+
+h2 { font-family: var(--f-display); font-weight: 600; font-size: 24px; margin: 0 0 12px; letter-spacing: .005em; }
+section { min-width: 0; }
+
+.pins { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; }
+.pin { background: var(--sheet); border: 1px solid var(--line); padding: 10px 12px; display: grid; gap: 2px; }
+.pin b { font-family: var(--f-mono); font-size: 20px; font-weight: 600; }
+.pin span { font-size: 13px; color: var(--muted); }
+.pin i { display: block; height: 4px; margin-bottom: 6px; }
+
+.sheet { background: var(--sheet); border: 1.5px solid var(--ink); overflow-x: auto; }
+.sheet svg { display: block; width: 100%; min-width: 980px; height: auto; }
+.sheet-foot { display: flex; flex-wrap: wrap; gap: 8px 22px; padding: 12px 16px; border-top: 1px solid var(--line); font-size: 13px; color: var(--muted); }
+.key { display: inline-flex; align-items: center; gap: 8px; }
+.key i { width: 26px; height: 4px; border-radius: 2px; display: inline-block; }
+
+/* SVG drawing */
+.w { fill: none; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; }
+.v5 { stroke: var(--w-5v); } .gnd { stroke: var(--w-gnd); } .sw { stroke: var(--w-sw); }
+.pot { stroke: var(--w-pot); } .rt { stroke: var(--w-r); } .lt { stroke: var(--w-l); }
+.nc { stroke: var(--w-nc); stroke-dasharray: 5 5; }
+.dot-5v { fill: var(--w-5v); } .dot-gnd { fill: var(--w-gnd); } .fill-pot { fill: var(--w-pot); }
+.board { fill: var(--sheet); stroke: var(--ink); stroke-width: 2; }
+.mega { fill: var(--pad); stroke: var(--ink); stroke-width: 2; }
+.padr { fill: var(--sheet); stroke: var(--ink); stroke-width: 1.5; }
+.plug { fill: var(--ink); }
+.term { fill: var(--sheet); stroke: var(--ink); stroke-width: 2; }
+.lever { stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
+.lead { stroke: var(--ink); stroke-width: 2.5; }
+.res { fill: var(--sheet); stroke: var(--ink); stroke-width: 2; }
+svg text { fill: var(--ink); font-family: var(--f-mono); font-size: 13px; }
+svg .lbl { font-family: var(--f-display); font-weight: 700; font-size: 16px; letter-spacing: .02em; }
+svg .cap { font-size: 10.5px; letter-spacing: .1em; font-weight: 600; }
+svg .sm { font-size: 11.5px; fill: var(--muted); }
+svg .mut { fill: var(--muted); }
+svg .big { font-family: var(--f-display); font-weight: 700; font-size: 24px; letter-spacing: .04em; }
+svg .c5 { fill: var(--w-5v); } svg .cg { fill: var(--w-gnd); }
+
+/* Wire list */
+.tablewrap { overflow-x: auto; background: var(--sheet); border: 1px solid var(--line); }
+table { border-collapse: collapse; width: 100%; min-width: 760px; font-size: 14px; }
+th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+th { font-family: var(--f-mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 500; background: var(--paper); }
+td.n { font-family: var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; width: 2.5em; }
+td code, .mono { font-family: var(--f-mono); font-size: 13px; }
+td.to code { font-weight: 600; }
+.sw-chip { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.sw-chip i { width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--line); display: inline-block; }
+tr.grp td { background: var(--paper); font-family: var(--f-display); font-weight: 600; font-size: 15px; letter-spacing: .02em; padding-top: 12px; }
+tr.done td:not(.chk) { opacity: .45; text-decoration: line-through; text-decoration-color: var(--muted); }
+td.chk { width: 2.5em; }
+input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+input[type=checkbox]:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.progress { font-family: var(--f-mono); font-size: 13px; color: var(--muted); margin: -4px 0 10px; }
+
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; }
+.note { background: var(--sheet); border: 1px solid var(--line); padding: 14px 16px; min-width: 0; }
+.note h3 { font-family: var(--f-display); font-size: 17px; font-weight: 600; margin: 0 0 6px; }
+.note p, .note ul, .note ol { margin: 0; color: var(--ink); }
+.note ul, .note ol { padding-left: 1.2em; display: grid; gap: 4px; }
+.note.warn { border-color: var(--w-5v); }
+.note.warn h3 { color: var(--w-5v); }
+
+@media (max-width: 640px) { header { grid-template-columns: 1fr; } }
+</style>
+<style>
+@page { size: letter landscape; margin: 9mm; }
+@media print {
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { background: #fff; font-size: 11.5px; line-height: 1.4; }
+  .wrap { padding: 0; gap: 12px; max-width: none; }
+  header { grid-template-columns: minmax(0,1fr) auto; }
+  h1 { font-size: 28px; } h2 { font-size: 19px; margin-bottom: 6px; }
+  #h-map, #h-map + .pins { display: none; }
+  .sheet svg { min-width: 0; max-height: 128mm; }
+  .sheet { break-inside: avoid; }
+  .sheet-foot { padding: 6px 12px; font-size: 11px; }
+  section:has(#h-list) { break-before: page; }
+  table { min-width: 0; font-size: 11.5px; }
+  th, td { padding: 2px 8px; line-height: 1.3; }
+  input[type=checkbox] { width: 13px; height: 13px; margin: 0; }
+  td code, .mono { font-size: 11px; }
+  tr.grp td { padding-top: 4px; font-size: 12.5px; }
+  tr { break-inside: avoid; }
+  #progress { display: none; }
+  section:has(#h-notes) { break-before: page; }
+  .notes { grid-template-columns: repeat(3, minmax(0,1fr)); gap: 10px; }
+  .note { break-inside: avoid; padding: 10px 12px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <p class="eyebrow">Exhibit Quantum · control panel</p>
+      <h1>Panel wiring diagram</h1>
+      <p class="lead">How to connect the three colour switches, the size slider and the two spinners to the Arduino Mega. Every pin number here matches the exhibit firmware, so the panel works as soon as it is plugged in.</p>
+    </div>
+    <div class="tblock" aria-label="Drawing details">
+      <div>Drawing</div><div>EQ-PANEL-01</div>
+      <div>Board</div><div>Arduino Mega 2560</div>
+      <div>Firmware</div><div>sketch.ino</div>
+      <div>Logic</div><div>5 V, active LOW</div>
+      <div>Date</div><div>2026-11-12</div>
+    </div>
+  </header>
+
+  <section aria-labelledby="h-map">
+    <h2 id="h-map">Pin map at a glance</h2>
+    <div class="pins">
+      <div class="pin"><i style="background:var(--w-sw)"></i><b>D2</b><span>SW_R · red switch</span></div>
+      <div class="pin"><i style="background:var(--w-sw)"></i><b>D3</b><span>SW_G · green switch</span></div>
+      <div class="pin"><i style="background:var(--w-sw)"></i><b>D4</b><span>SW_B · blue switch</span></div>
+      <div class="pin"><i style="background:var(--w-pot)"></i><b>A2</b><span>POT_S · size slider wiper</span></div>
+      <div class="pin"><i style="background:linear-gradient(90deg,var(--w-r) 50%,var(--w-l) 50%)"></i><b>18 / 19</b><span>Spinner 1 (X) · right / left</span></div>
+      <div class="pin"><i style="background:linear-gradient(90deg,var(--w-r) 50%,var(--w-l) 50%)"></i><b>20 / 21</b><span>Spinner 2 (Y) · right / left</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-dwg">
+    <h2 id="h-dwg">Schematic</h2>
+    <div class="sheet">
+      <svg viewBox="0 0 1190 760" role="img" aria-label="Wiring schematic: three switches to Mega pins D2, D3, D4 and ground; slide pot ends to 5V and ground with wiper to A2; spinner 1 top-plug pins 4 and 5 to Mega 18 and 19; spinner 2 to 20 and 21; both spinners powered from 5V and ground on their bottom plug.">
+        <!-- ===== Rails ===== -->
+        <path class="w gnd" d="M60 170 V730 H1135"/>
+        <path class="w v5" d="M170 690 H1160"/>
+        <text class="cap c5" x="790" y="682">+5 V RAIL</text>
+        <text class="cap cg" x="790" y="722">GND RAIL</text>
+
+        <!-- ===== Switches ===== -->
+        <g>
+          <path class="w gnd" d="M165 170 H60"/>
+          <line class="lever" x1="170" y1="170" x2="262" y2="146"/>
+          <circle class="term" cx="170" cy="170" r="5"/><circle class="term" cx="270" cy="170" r="5"/>
+          <path class="w sw" d="M275 170 H434"/>
+          <text class="lbl" x="220" y="132" text-anchor="middle">SW_R · RED</text>
+          <text class="sm" x="355" y="162" text-anchor="middle">to D2</text>
+          <text class="sm" x="112" y="162" text-anchor="middle">to GND</text>
+        </g>
+        <g>
+          <path class="w gnd" d="M165 240 H60"/>
+          <line class="lever" x1="170" y1="240" x2="262" y2="216"/>
+          <circle class="term" cx="170" cy="240" r="5"/><circle class="term" cx="270" cy="240" r="5"/>
+          <path class="w sw" d="M275 240 H434"/>
+          <text class="lbl" x="220" y="202" text-anchor="middle">SW_G · GREEN</text>
+          <text class="sm" x="355" y="232" text-anchor="middle">to D3</text>
+          <text class="sm" x="112" y="232" text-anchor="middle">to GND</text>
+          <circle class="dot-gnd" cx="60" cy="240" r="5"/>
+        </g>
+        <g>
+          <path class="w gnd" d="M165 310 H60"/>
+          <line class="lever" x1="170" y1="310" x2="262" y2="286"/>
+          <circle class="term" cx="170" cy="310" r="5"/><circle class="term" cx="270" cy="310" r="5"/>
+          <path class="w sw" d="M275 310 H434"/>
+          <text class="lbl" x="220" y="272" text-anchor="middle">SW_B · BLUE</text>
+          <text class="sm" x="355" y="302" text-anchor="middle">to D4</text>
+          <text class="sm" x="112" y="302" text-anchor="middle">to GND</text>
+          <circle class="dot-gnd" cx="60" cy="310" r="5"/>
+        </g>
+        <text class="sm" x="220" y="340" text-anchor="middle">toggle · either leg to pin, other to GND</text>
+
+        <!-- ===== Slide pot ===== -->
+        <text class="lbl" x="250" y="548" text-anchor="middle">POT_S · SIZE SLIDER</text>
+        <path class="w pot" d="M250 598 V575 H500 V546"/>
+        <polygon class="fill-pot" points="243,597 257,597 250,609"/>
+        <line class="lead" x1="175" y1="620" x2="190" y2="620"/>
+        <line class="lead" x1="310" y1="620" x2="325" y2="620"/>
+        <rect class="res" x="190" y="610" width="120" height="20"/>
+        <circle class="term" cx="170" cy="620" r="5"/><circle class="term" cx="330" cy="620" r="5"/>
+        <text class="cap" x="152" y="612" text-anchor="middle">PIN 1</text>
+        <text class="cap" x="350" y="612" text-anchor="middle">PIN 3</text>
+        <text class="cap" x="272" y="592">WIPER</text>
+        <text class="sm" x="250" y="652" text-anchor="middle">10 kΩ linear</text>
+        <path class="w v5" d="M170 625 V690"/>
+        <circle class="dot-5v" cx="170" cy="690" r="5"/>
+        <path class="w gnd" d="M330 625 V684 A6 6 0 0 1 330 696 V730"/>
+        <circle class="dot-gnd" cx="330" cy="730" r="5"/>
+
+        <!-- ===== Arduino Mega ===== -->
+        <rect class="mega" x="440" y="100" width="320" height="440" rx="8"/>
+        <rect class="board" x="575" y="84" width="50" height="16" rx="2"/>
+        <text class="sm" x="600" y="74" text-anchor="middle">USB to exhibit PC (also powers board)</text>
+        <text class="big" x="600" y="345" text-anchor="middle">ARDUINO MEGA 2560</text>
+        <text class="sm" x="600" y="364" text-anchor="middle">pins grouped by header, not to scale</text>
+
+        <text class="cap mut" x="456" y="140">DIGITAL (PWM) HEADER</text>
+        <rect class="padr" x="434" y="164" width="12" height="12"/><text x="456" y="174"><tspan font-weight="600">D2</tspan> SW_R</text>
+        <rect class="padr" x="434" y="234" width="12" height="12"/><text x="456" y="244"><tspan font-weight="600">D3</tspan> SW_G</text>
+        <rect class="padr" x="434" y="304" width="12" height="12"/><text x="456" y="314"><tspan font-weight="600">D4</tspan> SW_B</text>
+
+        <text class="cap mut" x="744" y="200" text-anchor="end">COMMUNICATION HEADER</text>
+        <rect class="padr" x="754" y="219" width="12" height="12"/><text x="744" y="229" text-anchor="end"><tspan font-weight="600">18</tspan> (TX1)</text>
+        <rect class="padr" x="754" y="244" width="12" height="12"/><text x="744" y="254" text-anchor="end"><tspan font-weight="600">19</tspan> (RX1)</text>
+        <rect class="padr" x="754" y="469" width="12" height="12"/><text x="744" y="479" text-anchor="end"><tspan font-weight="600">20</tspan> (SDA)</text>
+        <rect class="padr" x="754" y="494" width="12" height="12"/><text x="744" y="504" text-anchor="end"><tspan font-weight="600">21</tspan> (SCL)</text>
+
+        <text class="cap mut" x="500" y="500" text-anchor="middle">ANALOG IN</text>
+        <text class="cap mut" x="640" y="500" text-anchor="middle">POWER</text>
+        <rect class="padr" x="494" y="534" width="12" height="12"/><text x="500" y="526" text-anchor="middle" font-weight="600">A2</text>
+        <rect class="padr" x="614" y="534" width="12" height="12"/><text x="620" y="526" text-anchor="middle" font-weight="600">5V</text>
+        <rect class="padr" x="694" y="534" width="12" height="12"/><text x="700" y="526" text-anchor="middle" font-weight="600">GND</text>
+        <path class="w v5" d="M620 546 V690"/>
+        <circle class="dot-5v" cx="620" cy="690" r="5"/>
+        <path class="w gnd" d="M700 546 V684 A6 6 0 0 1 700 696 V730"/>
+        <circle class="dot-gnd" cx="700" cy="730" r="5"/>
+
+        <!-- ===== Spinner signal wires ===== -->
+        <path class="w rt" d="M766 225 H894"/>
+        <path class="w lt" d="M766 250 H894"/>
+        <path class="w rt" d="M766 475 H894"/>
+        <path class="w lt" d="M766 500 H894"/>
+        <text class="sm" x="830" y="218" text-anchor="middle">RIGHT</text>
+        <text class="sm" x="830" y="243" text-anchor="middle">LEFT</text>
+        <text class="sm" x="830" y="468" text-anchor="middle">RIGHT</text>
+        <text class="sm" x="830" y="493" text-anchor="middle">LEFT</text>
+
+        <!-- ===== Spinner 1 ===== -->
+        <text class="lbl" x="1005" y="90" text-anchor="middle">SPINNER 1 · X AXIS</text>
+        <rect class="board" x="900" y="100" width="210" height="210" rx="6"/>
+        <text class="cap" x="922" y="120">TOP PLUG</text>
+        <text class="sm" x="922" y="133">6-pin</text>
+        <text class="cap" x="1094" y="120" text-anchor="end">BOTTOM PLUG</text>
+        <text class="sm" x="1094" y="133" text-anchor="end">4-pin</text>
+        <rect class="plug" x="900" y="140" width="8" height="146"/>
+        <rect class="padr" x="894" y="145" width="12" height="10"/><text x="922" y="154"><tspan font-weight="600">1</tspan><tspan class="mut"> open</tspan></text>
+        <rect class="padr" x="894" y="170" width="12" height="10"/><text x="922" y="179"><tspan font-weight="600">2</tspan><tspan class="mut"> open</tspan></text>
+        <rect class="padr" x="894" y="195" width="12" height="10"/><text x="922" y="204"><tspan font-weight="600">3</tspan><tspan class="mut"> open</tspan></text>
+        <rect class="padr" x="894" y="220" width="12" height="10"/><text x="922" y="229"><tspan font-weight="600">4</tspan> RIGHT</text>
+        <rect class="padr" x="894" y="245" width="12" height="10"/><text x="922" y="254"><tspan font-weight="600">5</tspan> LEFT</text>
+        <rect class="padr" x="894" y="270" width="12" height="10"/><text x="922" y="279"><tspan font-weight="600">6</tspan><tspan class="mut"> open</tspan></text>
+        <rect class="plug" x="1102" y="155" width="8" height="96"/>
+        <rect class="padr" x="1104" y="160" width="12" height="10"/><text x="1092" y="169" text-anchor="end" font-weight="600">5V</text>
+        <rect class="padr" x="1104" y="185" width="12" height="10"/><text x="1092" y="194" text-anchor="end" font-weight="600">GND</text>
+        <rect class="padr" x="1104" y="210" width="12" height="10"/><text class="mut" x="1092" y="219" text-anchor="end">RX1 open</text>
+        <rect class="padr" x="1104" y="235" width="12" height="10"/><text class="mut" x="1092" y="244" text-anchor="end">TX1 open</text>
+        <text class="sm" x="1005" y="300" text-anchor="middle">TS-USP02</text>
+
+        <!-- ===== Spinner 2 ===== -->
+        <text class="lbl" x="1005" y="340" text-anchor="middle">SPINNER 2 · Y AXIS</text>
+        <rect class="board" x="900" y="350" width="210" height="210" rx="6"/>
+        <text class="cap" x="922" y="370">TOP PLUG</text>
+        <text class="sm" x="922" y="383">6-pin</text>
+        <text class="cap" x="1094" y="370" text-anchor="end">BOTTOM PLUG</text>
+        <text class="sm" x="1094" y="383" text-anchor="end">4-pin</text>
+        <rect class="plug" x="900" y="390" width="8" height="146"/>
+        <rect class="padr" x="894" y="395" width="12" height="10"/><text x="922" y="404"><tspan font-weight="600">1</tspan><tspan class="mut"> open</tspan></text>
+        <rect class="padr" x="894" y="420" width="12" height="10"/><text x="922" y="429"><tspan font-weight="600">2</tspan><tspan class="mut"> open</tspan></text>
+        <rect class="padr" x="894" y="445" width="12" height="10"/><text x="922" y="454"><tspan font-weight="600">3</tspan><tspan class="mut"> open</tspan></text>
+        <rect class="padr" x="894" y="470" width="12" height="10"/><text x="922" y="479"><tspan font-weight="600">4</tspan> RIGHT</text>
+        <rect class="padr" x="894" y="495" width="12" height="10"/><text x="922" y="504"><tspan font-weight="600">5</tspan> LEFT</text>
+        <rect class="padr" x="894" y="520" width="12" height="10"/><text x="922" y="529"><tspan font-weight="600">6</tspan><tspan class="mut"> open</tspan></text>
+        <rect class="plug" x="1102" y="405" width="8" height="96"/>
+        <rect class="padr" x="1104" y="410" width="12" height="10"/><text x="1092" y="419" text-anchor="end" font-weight="600">5V</text>
+        <rect class="padr" x="1104" y="435" width="12" height="10"/><text x="1092" y="444" text-anchor="end" font-weight="600">GND</text>
+        <rect class="padr" x="1104" y="460" width="12" height="10"/><text class="mut" x="1092" y="469" text-anchor="end">RX1 open</text>
+        <rect class="padr" x="1104" y="485" width="12" height="10"/><text class="mut" x="1092" y="494" text-anchor="end">TX1 open</text>
+        <text class="sm" x="1005" y="550" text-anchor="middle">TS-USP02</text>
+
+        <!-- ===== Spinner power risers ===== -->
+        <path class="w v5" d="M1116 165 H1160 V690"/>
+        <path class="w gnd" d="M1116 190 H1135 V684 A6 6 0 0 1 1135 696 V730"/>
+        <path class="w v5" d="M1116 415 H1129 A6 6 0 0 1 1141 415 H1160"/>
+        <circle class="dot-5v" cx="1160" cy="415" r="5"/>
+        <path class="w gnd" d="M1116 440 H1135"/>
+        <circle class="dot-gnd" cx="1135" cy="440" r="5"/>
+      </svg>
+      <div class="sheet-foot">
+        <span class="key"><i style="background:var(--w-5v)"></i>+5 V</span>
+        <span class="key"><i style="background:var(--w-gnd)"></i>GND</span>
+        <span class="key"><i style="background:var(--w-sw)"></i>Switch signal</span>
+        <span class="key"><i style="background:var(--w-pot)"></i>Slider wiper</span>
+        <span class="key"><i style="background:var(--w-r)"></i>Spinner RIGHT</span>
+        <span class="key"><i style="background:var(--w-l)"></i>Spinner LEFT</span>
+        <span>A dot is a joint. A wire that hops over another is not connected to it.</span>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-list">
+    <h2 id="h-list">Wire list</h2>
+    <p class="progress" id="progress">0 of 19 wires done</p>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Done</th><th>#</th><th>From</th><th>To</th><th>Suggested colour</th><th>What it does</th></tr></thead>
+        <tbody id="wires">
+          <tr class="grp"><td colspan="6">Power rails · Mega to terminal block</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w1" aria-label="Wire 1 done"></td><td class="n">1</td><td>Mega <code>5V</code> (power header)</td><td class="to">+5 V rail</td><td><span class="sw-chip"><i style="background:var(--w-5v)"></i>Red</span></td><td>Feeds the slider and both spinners</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w2" aria-label="Wire 2 done"></td><td class="n">2</td><td>Mega <code>GND</code> (power header)</td><td class="to">GND rail</td><td><span class="sw-chip"><i style="background:var(--w-gnd)"></i>Black</span></td><td>Common ground for everything</td></tr>
+
+          <tr class="grp"><td colspan="6">Colour switches · Window 1</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w3" aria-label="Wire 3 done"></td><td class="n">3</td><td>SW_R, leg A</td><td class="to">Mega <code>D2</code></td><td><span class="sw-chip"><i style="background:var(--w-sw)"></i>Yellow</span></td><td>Red channel on / off</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w4" aria-label="Wire 4 done"></td><td class="n">4</td><td>SW_R, leg B</td><td class="to">GND rail</td><td><span class="sw-chip"><i style="background:var(--w-gnd)"></i>Black</span></td><td></td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w5" aria-label="Wire 5 done"></td><td class="n">5</td><td>SW_G, leg A</td><td class="to">Mega <code>D3</code></td><td><span class="sw-chip"><i style="background:var(--w-sw)"></i>Yellow</span></td><td>Green channel on / off</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w6" aria-label="Wire 6 done"></td><td class="n">6</td><td>SW_G, leg B</td><td class="to">GND rail</td><td><span class="sw-chip"><i style="background:var(--w-gnd)"></i>Black</span></td><td></td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w7" aria-label="Wire 7 done"></td><td class="n">7</td><td>SW_B, leg A</td><td class="to">Mega <code>D4</code></td><td><span class="sw-chip"><i style="background:var(--w-sw)"></i>Yellow</span></td><td>Blue channel on / off</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w8" aria-label="Wire 8 done"></td><td class="n">8</td><td>SW_B, leg B</td><td class="to">GND rail</td><td><span class="sw-chip"><i style="background:var(--w-gnd)"></i>Black</span></td><td></td></tr>
+
+          <tr class="grp"><td colspan="6">Size slider · Window 3</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w9" aria-label="Wire 9 done"></td><td class="n">9</td><td>POT_S, end pin 1</td><td class="to">+5 V rail</td><td><span class="sw-chip"><i style="background:var(--w-5v)"></i>Red</span></td><td>Top of the track</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w10" aria-label="Wire 10 done"></td><td class="n">10</td><td>POT_S, end pin 3</td><td class="to">GND rail</td><td><span class="sw-chip"><i style="background:var(--w-gnd)"></i>Black</span></td><td>Bottom of the track</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w11" aria-label="Wire 11 done"></td><td class="n">11</td><td>POT_S, wiper (middle pin)</td><td class="to">Mega <code>A2</code></td><td><span class="sw-chip"><i style="background:var(--w-pot)"></i>Purple</span></td><td>Selector box size, read 0 to 1023</td></tr>
+
+          <tr class="grp"><td colspan="6">Spinner 1 · moves the selector left / right (X)</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w12" aria-label="Wire 12 done"></td><td class="n">12</td><td>Bottom plug <code>5V</code></td><td class="to">+5 V rail</td><td><span class="sw-chip"><i style="background:var(--w-5v)"></i>Red</span></td><td>Power</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w13" aria-label="Wire 13 done"></td><td class="n">13</td><td>Bottom plug <code>GND</code></td><td class="to">GND rail</td><td><span class="sw-chip"><i style="background:var(--w-gnd)"></i>Black</span></td><td>Ground</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w14" aria-label="Wire 14 done"></td><td class="n">14</td><td>Top plug pin <code>4</code> (RIGHT)</td><td class="to">Mega <code>18</code> (TX1)</td><td><span class="sw-chip"><i style="background:var(--w-r)"></i>Blue</span></td><td>One pulse per step to the right</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w15" aria-label="Wire 15 done"></td><td class="n">15</td><td>Top plug pin <code>5</code> (LEFT)</td><td class="to">Mega <code>19</code> (RX1)</td><td><span class="sw-chip"><i style="background:var(--w-l)"></i>Green</span></td><td>One pulse per step to the left</td></tr>
+
+          <tr class="grp"><td colspan="6">Spinner 2 · moves the selector up / down (Y)</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w16" aria-label="Wire 16 done"></td><td class="n">16</td><td>Bottom plug <code>5V</code></td><td class="to">+5 V rail</td><td><span class="sw-chip"><i style="background:var(--w-5v)"></i>Red</span></td><td>Power</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w17" aria-label="Wire 17 done"></td><td class="n">17</td><td>Bottom plug <code>GND</code></td><td class="to">GND rail</td><td><span class="sw-chip"><i style="background:var(--w-gnd)"></i>Black</span></td><td>Ground</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w18" aria-label="Wire 18 done"></td><td class="n">18</td><td>Top plug pin <code>4</code> (RIGHT)</td><td class="to">Mega <code>20</code> (SDA)</td><td><span class="sw-chip"><i style="background:var(--w-r)"></i>Blue</span></td><td>One pulse per step one way</td></tr>
+          <tr><td class="chk"><input type="checkbox" id="w19" aria-label="Wire 19 done"></td><td class="n">19</td><td>Top plug pin <code>5</code> (LEFT)</td><td class="to">Mega <code>21</code> (SCL)</td><td><span class="sw-chip"><i style="background:var(--w-l)"></i>Green</span></td><td>One pulse per step the other way</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-notes">
+    <h2 id="h-notes">Before you power up</h2>
+    <div class="notes">
+      <div class="note warn">
+        <h3>Do not connect</h3>
+        <ul>
+          <li>Switches go to <b>GND only</b>, never to 5 V. No resistors are needed; the Mega's internal pull-ups are switched on in the code.</li>
+          <li>Spinner bottom plug <span class="mono">RX1</span> and <span class="mono">TX1</span>: leave open.</li>
+          <li>Spinner top plug pins <span class="mono">1, 2, 3, 6</span>: leave open.</li>
+          <li>The spinner's 4-pin header on the right edge (<span class="mono">3.3V / SWIM / GND / NRST</span>) is a programming port. Leave it alone.</li>
+          <li>Nothing else on Mega pins 20 / 21 (no I2C devices).</li>
+        </ul>
+      </div>
+      <div class="note">
+        <h3>Finding the spinner pins</h3>
+        <p>Hold the spinner board so the 6-pin plug is at the top and the DIP switch is at the bottom right. Count the top plug's pins 1 to 6 from left to right. Pin 4 idles near 5 V; pin 5 reads 0 V until it is wired to the Mega.</p>
+      </div>
+      <div class="note">
+        <h3>Switches with three legs</h3>
+        <p>If a toggle switch has three terminals, use the middle one and one outer one. Leave the other outer terminal open. If the switch reads backwards (on when the lever is down), use the other outer terminal instead.</p>
+      </div>
+      <div class="note">
+        <h3>Power and ground</h3>
+        <ul>
+          <li>Everything runs from the Mega's USB power. No separate supply.</li>
+          <li>Use a terminal block or lever connectors for the +5 V and GND rails so each device gets its own wire.</li>
+          <li>Optional: a 0.1 µF capacitor from the slider wiper to GND steadies the reading.</li>
+        </ul>
+      </div>
+      <div class="note">
+        <h3>If something moves the wrong way</h3>
+        <ul>
+          <li>Slider runs backwards: swap the wires on its two end pins (wires 9 and 10).</li>
+          <li>Spinner runs backwards: swap that spinner's pin 4 and pin 5 wires.</li>
+          <li>Neither needs a code change.</li>
+        </ul>
+      </div>
+      <div class="note">
+        <h3>Test after wiring</h3>
+        <ol>
+          <li>Upload <span class="mono">sketch.ino</span> (board: Arduino Mega 2560).</li>
+          <li>Open the Serial Monitor at 115200 baud. Lines look like <span class="mono">S:1,0,1,0,0,A:0,0,512,E:3,-1</span>.</li>
+          <li>Flip each switch: the first three numbers after <span class="mono">S:</span> change between 0 and 1.</li>
+          <li>Slide the pot: the third number after <span class="mono">A:</span> goes from about 0 to 1023.</li>
+          <li>Turn each spinner: the numbers after <span class="mono">E:</span> go positive one way, negative the other.</li>
+          <li>Close the Serial Monitor before starting the exhibit app.</li>
+        </ol>
+      </div>
+    </div>
+  </section>
+</div>
+
+<script>
+(function () {
+  var KEY = "eq-panel-wires";
+  var boxes = Array.prototype.slice.call(document.querySelectorAll('#wires input[type=checkbox]'));
+  var saved = {};
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { saved = {}; }
+  function update() {
+    var done = 0;
+    boxes.forEach(function (b) {
+      b.closest('tr').classList.toggle('done', b.checked);
+      if (b.checked) done++;
+    });
+    document.getElementById('progress').textContent = done + " of " + boxes.length + " wires done";
+  }
+  boxes.forEach(function (b) {
+    if (saved[b.id]) b.checked = true;
+    b.addEventListener('change', function () {
+      saved[b.id] = b.checked;
+      try { localStorage.setItem(KEY, JSON.stringify(saved)); } catch (e) {}
+      update();
+    });
+  });
+  update();
+})();
+</script>
+
+</body>
+</html>

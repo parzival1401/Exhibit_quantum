@@ -5,6 +5,10 @@ This records what we know about two controls being considered for the
 panel, what is still unknown, and how we are testing them. Last updated
 2026-10-29.
 
+**Wiring diagram for the panel build:** `arduino/wiring/panel_wiring.pdf`
+(schematic, numbered wire list, pre-power checks), `panel_wiring.png`
+(schematic only) and `panel_wiring.html` (the source they are rendered from).
+
 ## The panel before the spinners
 
 Until 2026-11-03 `arduino/sketch/sketch.ino` targeted an Arduino Uno:
